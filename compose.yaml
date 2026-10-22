@@ -1,0 +1,33 @@
+# Risk. The risk register and vendor reviews; other products open risks with an API token from Settings (ADR 0049).
+#
+#   openssl rand -hex 32 > openasy-kek   # risk's key: sign-in secrets (ADR 0021). Keep it with your backups
+#   docker compose up -d
+#   docker compose logs risk | grep 'no owner yet'   # the one-time link that creates the owner account
+services:
+  risk:
+    image: ghcr.io/openasy/risk:0.1.0
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080"   # UI and API; put a TLS proxy in front to reach it from elsewhere
+    volumes:
+      - risk-data:/data   # SQLite database: risks, vendors, links and their history
+    secrets:
+      - openasy-kek   # mounted at /run/secrets/openasy-kek
+    environment:
+      # The address people open Risk at; with a TLS proxy in front, its https:// URL.
+      RISK_PUBLIC_URL: ${RISK_PUBLIC_URL:-http://localhost:8080}
+      # Sign in with your identity provider (OIDC), see the README:
+      # RISK_OIDC_ISSUER: https://login.example.com
+      # RISK_OIDC_CLIENT_ID: risk
+      # RISK_OIDC_CLIENT_SECRET: ${RISK_OIDC_CLIENT_SECRET}
+
+volumes:
+  risk-data:
+
+secrets:
+  openasy-kek:
+    file: ./openasy-kek
