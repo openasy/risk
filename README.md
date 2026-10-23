@@ -77,7 +77,7 @@ are on http://localhost:8080, the API reference at http://localhost:8080/api/doc
 | `RISK_DB` | `/data/risk.db` | SQLite file (WAL), on the `/data` volume |
 | `RISK_METRICS_PORT` | | Serve `/metrics` on this port only (ADR 0026) |
 | `RISK_HEADLESS` | `false` | `true` serves only the API |
-| `RISK_PASSWORD_SIGN_IN`, `RISK_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)) |
+| `RISK_PASSWORD_SIGN_IN`, `OPENASY_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)) |
 
 Nothing is deleted on a schedule: a register is a record. `/metrics` has `openasy_risk_open_risks{band}`,
 `openasy_risk_overdue_reviews`, `openasy_risk_review_due`, `openasy_risk_accepted`, `openasy_risk_vendors` and
