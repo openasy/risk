@@ -1,6 +1,6 @@
 {
   "name": "@openasy/risk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "OpenAsy Risk: the risk register and vendor reviews, linked to controls and findings, with a history nobody edits.",
   "license": "AGPL-3.0-only",
@@ -43,6 +43,6 @@
     "npm": ">=11"
   },
   "dependencies": {
-    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.7.0/openasy-auth-0.7.0.tgz"
+    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.8.0/openasy-auth-0.8.0.tgz"
   }
 }
