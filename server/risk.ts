@@ -68,7 +68,8 @@ export function parseLimit(value: string | null, max = 500, fallback = 100): num
 }
 
 const str = (v: unknown, name: string, min: number, max: number): string => {
-  if (typeof v !== "string" || v.trim().length < min || v.trim().length > max) throw bad(`${name} must be ${min === 0 ? "at most" : `${min} to`} ${max} characters.`);
+  if (typeof v !== "string" || v.trim().length < min || v.trim().length > max)
+    throw bad(`${name} must be ${min === 0 ? "at most" : `${min} to`} ${max} characters.`);
   return v.trim();
 };
 const optStr = (v: unknown, name: string, max: number): string | null => (v === undefined || v === null || v === "" ? null : str(v, name, 1, max));
@@ -86,11 +87,13 @@ const days = (v: unknown, name: string): number => {
 };
 function webUrl(v: unknown): string {
   const u = typeof v === "string" ? URL.parse(v.trim()) : null;
-  if (!u || (u.protocol !== "https:" && u.protocol !== "http:") || u.username || u.password) throw bad("url must be a web address starting with http:// or https://, without credentials.");
+  if (!u || (u.protocol !== "https:" && u.protocol !== "http:") || u.username || u.password)
+    throw bad("url must be a web address starting with http:// or https://, without credentials.");
   return u.href;
 }
 function tagList(v: unknown): string[] {
-  if (!Array.isArray(v) || v.length > 12 || v.some((t) => typeof t !== "string" || !/^[a-z0-9][a-z0-9 ._-]{0,29}$/i.test(t))) throw bad("tags is a list of at most 12 short labels.");
+  if (!Array.isArray(v) || v.length > 12 || v.some((t) => typeof t !== "string" || !/^[a-z0-9][a-z0-9 ._-]{0,29}$/i.test(t)))
+    throw bad("tags is a list of at most 12 short labels.");
   return [...new Set((v as string[]).map((t) => t.toLowerCase()))];
 }
 function exact(body: Record<string, unknown>, allowed: string[]) {
@@ -128,7 +131,21 @@ export interface RiskOptions {
   now?: () => Date;
 }
 
-const RISK_FIELDS = ["title", "description", "category", "likelihood", "impact", "residualLikelihood", "residualImpact", "owner", "status", "treatment", "plan", "reviewIntervalDays", "tags"];
+const RISK_FIELDS = [
+  "title",
+  "description",
+  "category",
+  "likelihood",
+  "impact",
+  "residualLikelihood",
+  "residualImpact",
+  "owner",
+  "status",
+  "treatment",
+  "plan",
+  "reviewIntervalDays",
+  "tags",
+];
 const VENDOR_FIELDS = ["name", "service", "dataClasses", "criticality", "contact", "status", "questionnaire", "rating", "reviewIntervalDays", "notes", "risks"];
 
 export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: RiskOptions = {}) {
@@ -138,10 +155,22 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
 
   function note(kind: "risk" | "vendor", id: string, who: string, field: string, from: unknown, to: unknown) {
     const text = (v: unknown) => (v === null || v === undefined ? null : typeof v === "string" ? v : JSON.stringify(v));
-    db.prepare("INSERT INTO history (subject_kind, subject_id, at, who, field, old_value, new_value) VALUES (?, ?, ?, ?, ?, ?, ?)").run(kind, id, now(), who, field, text(from), text(to));
+    db.prepare("INSERT INTO history (subject_kind, subject_id, at, who, field, old_value, new_value) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      kind,
+      id,
+      now(),
+      who,
+      field,
+      text(from),
+      text(to),
+    );
   }
   const history = (kind: "risk" | "vendor", id: string) =>
-    (db.prepare("SELECT at, who, field, old_value, new_value FROM history WHERE subject_kind = ? AND subject_id = ? ORDER BY id DESC LIMIT 500").all(kind, id) as Array<Record<string, any>>).map((h) => ({
+    (
+      db
+        .prepare("SELECT at, who, field, old_value, new_value FROM history WHERE subject_kind = ? AND subject_id = ? ORDER BY id DESC LIMIT 500")
+        .all(kind, id) as Array<Record<string, any>>
+    ).map((h) => ({
       at: h.at as string,
       who: h.who as string,
       field: h.field as string,
@@ -152,7 +181,8 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
   // ---------------------------------------------------------------- Risks
   const riskRow = (idOrKey: string) => {
     const m = /^R-(\d{1,9})$/i.exec(idOrKey);
-    const r = (m ? db.prepare("SELECT * FROM risks WHERE number = ?").get(Number(m[1])) : db.prepare("SELECT * FROM risks WHERE id = ?").get(idOrKey)) as Record<string, any> | undefined;
+    const r = (m ? db.prepare("SELECT * FROM risks WHERE number = ?").get(Number(m[1])) : db.prepare("SELECT * FROM risks WHERE id = ?").get(idOrKey)) as
+      Record<string, any> | undefined;
     if (!r) throw notFound("The risk");
     return r;
   };
@@ -175,7 +205,9 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       impact: r.impact as number,
       score: inherent,
       band: bandOf(inherent),
-      residual: hasResidual ? { likelihood: r.residual_likelihood as number, impact: r.residual_impact as number, score: residual!, band: bandOf(residual!) } : null,
+      residual: hasResidual
+        ? { likelihood: r.residual_likelihood as number, impact: r.residual_impact as number, score: residual!, band: bandOf(residual!) }
+        : null,
       owner: (r.owner as string | null) ?? null,
       status: effective(r),
       treatment: (r.treatment as string | null) ?? null,
@@ -184,7 +216,10 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       nextReview: r.next_review as string,
       lastReview: (r.last_review as string | null) ?? null,
       overdue: overdue(r),
-      acceptance: r.status === "accepted" ? { reason: r.accepted_reason as string, approver: r.accepted_by as string, until: r.accepted_until as string, expired: expired(r) } : null,
+      acceptance:
+        r.status === "accepted"
+          ? { reason: r.accepted_reason as string, approver: r.accepted_by as string, until: r.accepted_until as string, expired: expired(r) }
+          : null,
       tags: JSON.parse(r.tags) as string[],
       external: r.ext_source ? { source: r.ext_source as string, reference: r.ext_ref as string } : null,
       linkCount: (db.prepare("SELECT COUNT(*) AS n FROM risk_links WHERE risk_id = ?").get(r.id) as { n: number }).n,
@@ -211,16 +246,41 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     if (product && !PRODUCT.test(product)) throw bad("product is a product id such as siem.");
     const reference = str(body.reference, "reference", 1, 200);
     const url = body.url === undefined || body.url === null || body.url === "" ? null : webUrl(body.url);
-    if ((db.prepare("SELECT COUNT(*) AS n FROM risk_links WHERE risk_id = ?").get(riskId) as { n: number }).n >= MAX_LINKS) throw bad(`A risk has at most ${MAX_LINKS} links.`);
-    if (db.prepare("SELECT 1 FROM risk_links WHERE risk_id = ? AND kind = ? AND product = ? AND reference = ?").get(riskId, kind, product, reference)) throw new RiskError(409, "conflict", "This link exists.");
+    if ((db.prepare("SELECT COUNT(*) AS n FROM risk_links WHERE risk_id = ?").get(riskId) as { n: number }).n >= MAX_LINKS)
+      throw bad(`A risk has at most ${MAX_LINKS} links.`);
+    if (db.prepare("SELECT 1 FROM risk_links WHERE risk_id = ? AND kind = ? AND product = ? AND reference = ?").get(riskId, kind, product, reference))
+      throw new RiskError(409, "conflict", "This link exists.");
     const id = randomUUID();
-    db.prepare("INSERT INTO risk_links (id, risk_id, kind, product, reference, url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, riskId, kind, product, reference, url, now());
+    db.prepare("INSERT INTO risk_links (id, risk_id, kind, product, reference, url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      id,
+      riskId,
+      kind,
+      product,
+      reference,
+      url,
+      now(),
+    );
     note("risk", riskId, who, "link added", null, `${kind}${product ? ` ${product}` : ""}: ${reference}`);
     return id;
   }
 
   function createRiskRecord(body: Record<string, unknown>, who: string) {
-    exact(body, ["title", "description", "category", "likelihood", "impact", "residualLikelihood", "residualImpact", "owner", "treatment", "plan", "reviewIntervalDays", "tags", "links", "external"]);
+    exact(body, [
+      "title",
+      "description",
+      "category",
+      "likelihood",
+      "impact",
+      "residualLikelihood",
+      "residualImpact",
+      "owner",
+      "treatment",
+      "plan",
+      "reviewIntervalDays",
+      "tags",
+      "links",
+      "external",
+    ]);
     const ext = body.external === undefined ? null : external(body.external);
     if (ext) {
       const dup = db.prepare("SELECT * FROM risks WHERE ext_source = ? AND ext_ref = ?").get(ext.source, ext.reference) as Record<string, any> | undefined;
@@ -246,10 +306,25 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
         `INSERT INTO risks (id, number, title, description, category, likelihood, impact, residual_likelihood, residual_impact, owner, status, treatment, plan, review_interval_days, next_review, tags, ext_source, ext_ref, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'identified', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
-        id, number, str(body.title, "title", 3, 200), body.description === undefined ? "" : str(body.description, "description", 0, 4000), oneOf(body.category, "category", CATEGORIES),
-        score(body.likelihood, "likelihood"), score(body.impact, "impact"), rl, ri, optStr(body.owner, "owner", 100),
-        body.treatment === undefined || body.treatment === null ? null : oneOf(body.treatment, "treatment", TREATMENTS), body.plan === undefined ? "" : str(body.plan, "plan", 0, 4000),
-        interval, inDays(interval), JSON.stringify(body.tags === undefined ? [] : tagList(body.tags)), ext?.source ?? null, ext?.reference ?? null, t, t,
+        id,
+        number,
+        str(body.title, "title", 3, 200),
+        body.description === undefined ? "" : str(body.description, "description", 0, 4000),
+        oneOf(body.category, "category", CATEGORIES),
+        score(body.likelihood, "likelihood"),
+        score(body.impact, "impact"),
+        rl,
+        ri,
+        optStr(body.owner, "owner", 100),
+        body.treatment === undefined || body.treatment === null ? null : oneOf(body.treatment, "treatment", TREATMENTS),
+        body.plan === undefined ? "" : str(body.plan, "plan", 0, 4000),
+        interval,
+        inDays(interval),
+        JSON.stringify(body.tags === undefined ? [] : tagList(body.tags)),
+        ext?.source ?? null,
+        ext?.reference ?? null,
+        t,
+        t,
       );
       note("risk", id, who, "created", null, `R-${number}`);
       for (const l of linkList) {
@@ -284,7 +359,8 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     if ("treatment" in body) change("treatment", "treatment", r.treatment, body.treatment === null ? null : oneOf(body.treatment, "treatment", TREATMENTS));
     if ("plan" in body) change("plan", "plan", r.plan, str(body.plan, "plan", 0, 4000));
     if ("tags" in body) change("tags", "tags", JSON.parse(r.tags), tagList(body.tags));
-    const rl = "residualLikelihood" in body ? (body.residualLikelihood === null ? null : score(body.residualLikelihood, "residualLikelihood")) : r.residual_likelihood;
+    const rl =
+      "residualLikelihood" in body ? (body.residualLikelihood === null ? null : score(body.residualLikelihood, "residualLikelihood")) : r.residual_likelihood;
     const ri = "residualImpact" in body ? (body.residualImpact === null ? null : score(body.residualImpact, "residualImpact")) : r.residual_impact;
     if ((rl === null) !== (ri === null)) throw bad("residualLikelihood and residualImpact come together.");
     change("residual likelihood", "residual_likelihood", r.residual_likelihood, rl);
@@ -292,7 +368,8 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     if ("status" in body) {
       const status = oneOf(body.status, "status", STATUSES);
       // Accepting a risk is a decision somebody answers for: it has its own call (ADR 0049).
-      if (status === "accepted" && r.status !== "accepted") throw bad("Use POST /risks/{id}/accept to accept a risk: it needs a reason, an approver and an end date.");
+      if (status === "accepted" && r.status !== "accepted")
+        throw bad("Use POST /risks/{id}/accept to accept a risk: it needs a reason, an approver and an end date.");
       if (status !== r.status) {
         change("status", "status", r.status, status);
         if (r.status === "accepted") {
@@ -340,10 +417,19 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     const until = new Date(t).toISOString();
     db.exec("BEGIN IMMEDIATE");
     try {
-      db.prepare("UPDATE risks SET status = 'accepted', treatment = 'accept', accepted_reason = ?, accepted_by = ?, accepted_until = ?, closed_at = NULL, updated_at = ? WHERE id = ?").run(reason, approver, until, now(), r.id);
+      db.prepare(
+        "UPDATE risks SET status = 'accepted', treatment = 'accept', accepted_reason = ?, accepted_by = ?, accepted_until = ?, closed_at = NULL, updated_at = ? WHERE id = ?",
+      ).run(reason, approver, until, now(), r.id);
       if (r.status !== "accepted") note("risk", r.id, who, "status", r.status, "accepted");
       if (r.treatment !== "accept") note("risk", r.id, who, "treatment", r.treatment, "accept");
-      note("risk", r.id, who, "acceptance", r.status === "accepted" ? `${r.accepted_by} until ${r.accepted_until}` : null, `${approver} until ${until}: ${reason}`);
+      note(
+        "risk",
+        r.id,
+        who,
+        "acceptance",
+        r.status === "accepted" ? `${r.accepted_by} until ${r.accepted_until}` : null,
+        `${approver} until ${until}: ${reason}`,
+      );
       db.exec("COMMIT");
     } catch (err) {
       db.exec("ROLLBACK");
@@ -372,7 +458,12 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     else if (f.status === "accepted") (where.push("status = 'accepted' AND accepted_until > ?"), args.push(t));
     else if (f.status) (where.push("status = ?"), args.push(f.status));
     if (f.band?.length) {
-      const range = { low: "(likelihood * impact) <= 4", medium: "(likelihood * impact) BETWEEN 5 AND 9", high: "(likelihood * impact) BETWEEN 10 AND 16", critical: "(likelihood * impact) >= 17" };
+      const range = {
+        low: "(likelihood * impact) <= 4",
+        medium: "(likelihood * impact) BETWEEN 5 AND 9",
+        high: "(likelihood * impact) BETWEEN 10 AND 16",
+        critical: "(likelihood * impact) >= 17",
+      };
       where.push(`(${f.band.map((b) => range[b]).join(" OR ")})`);
     }
     if (f.category) (where.push("category = ?"), args.push(f.category));
@@ -403,9 +494,9 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
   const vendorOverdue = (v: Record<string, any>) => v.status !== "offboarding" && v.next_review <= today();
 
   function presentVendor(v: Record<string, any>) {
-    const linked = db
-      .prepare("SELECT r.* FROM risks r JOIN vendor_risks vr ON vr.risk_id = r.id WHERE vr.vendor_id = ? ORDER BY r.number")
-      .all(v.id) as Array<Record<string, any>>;
+    const linked = db.prepare("SELECT r.* FROM risks r JOIN vendor_risks vr ON vr.risk_id = r.id WHERE vr.vendor_id = ? ORDER BY r.number").all(v.id) as Array<
+      Record<string, any>
+    >;
     return {
       id: v.id as string,
       name: v.name as string,
@@ -422,25 +513,32 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       overdue: vendorOverdue(v),
       notes: v.notes as string,
       risks: linked.map((r) => ({ id: r.id as string, key: `R-${r.number}`, title: r.title as string, band: bandOf(r.likelihood * r.impact) })),
-      documents: (db.prepare("SELECT * FROM vendor_documents WHERE vendor_id = ? ORDER BY created_at, id").all(v.id) as Array<Record<string, any>>).map((d) => ({ id: d.id as string, title: d.title as string, url: d.url as string, createdAt: d.created_at as string })),
+      documents: (db.prepare("SELECT * FROM vendor_documents WHERE vendor_id = ? ORDER BY created_at, id").all(v.id) as Array<Record<string, any>>).map(
+        (d) => ({ id: d.id as string, title: d.title as string, url: d.url as string, createdAt: d.created_at as string }),
+      ),
       createdAt: v.created_at as string,
       updatedAt: v.updated_at as string,
     };
   }
 
   function classes(v: unknown): string[] {
-    if (!Array.isArray(v) || v.length > DATA_CLASSES.length || v.some((c) => !DATA_CLASSES.includes(c as never))) throw bad(`dataClasses is a list of ${DATA_CLASSES.join(", ")}.`);
+    if (!Array.isArray(v) || v.length > DATA_CLASSES.length || v.some((c) => !DATA_CLASSES.includes(c as never)))
+      throw bad(`dataClasses is a list of ${DATA_CLASSES.join(", ")}.`);
     return [...new Set(v as string[])];
   }
   function riskIds(v: unknown): string[] {
     if (!Array.isArray(v) || v.length > 100 || v.some((k) => typeof k !== "string")) throw bad("risks is a list of risk keys such as R-3.");
-    return [...new Set((v as string[]).map((k) => {
-      try {
-        return riskRow(k).id as string;
-      } catch {
-        throw bad(`${k} is not a risk on the register.`);
-      }
-    }))];
+    return [
+      ...new Set(
+        (v as string[]).map((k) => {
+          try {
+            return riskRow(k).id as string;
+          } catch {
+            throw bad(`${k} is not a risk on the register.`);
+          }
+        }),
+      ),
+    ];
   }
 
   function createVendor(body: Record<string, unknown>, who: string) {
@@ -455,11 +553,23 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       db.prepare(
         "INSERT INTO vendors (id, name, service, data_classes, criticality, contact, status, questionnaire, rating, review_interval_days, next_review, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(
-        id, name, body.service === undefined ? "" : str(body.service, "service", 0, 300), JSON.stringify(body.dataClasses === undefined ? [] : classes(body.dataClasses)), oneOf(body.criticality, "criticality", CRITICALITIES),
-        optStr(body.contact, "contact", 200), body.status === undefined ? "onboarding" : oneOf(body.status, "status", VENDOR_STATUSES), body.questionnaire === undefined ? "not-sent" : oneOf(body.questionnaire, "questionnaire", QUESTIONNAIRES),
-        body.rating === undefined || body.rating === null ? null : oneOf(body.rating, "rating", RATINGS), interval, inDays(interval), body.notes === undefined ? "" : str(body.notes, "notes", 0, 4000), t, t,
+        id,
+        name,
+        body.service === undefined ? "" : str(body.service, "service", 0, 300),
+        JSON.stringify(body.dataClasses === undefined ? [] : classes(body.dataClasses)),
+        oneOf(body.criticality, "criticality", CRITICALITIES),
+        optStr(body.contact, "contact", 200),
+        body.status === undefined ? "onboarding" : oneOf(body.status, "status", VENDOR_STATUSES),
+        body.questionnaire === undefined ? "not-sent" : oneOf(body.questionnaire, "questionnaire", QUESTIONNAIRES),
+        body.rating === undefined || body.rating === null ? null : oneOf(body.rating, "rating", RATINGS),
+        interval,
+        inDays(interval),
+        body.notes === undefined ? "" : str(body.notes, "notes", 0, 4000),
+        t,
+        t,
       );
-      for (const rid of body.risks === undefined ? [] : riskIds(body.risks)) db.prepare("INSERT INTO vendor_risks (vendor_id, risk_id) VALUES (?, ?)").run(id, rid);
+      for (const rid of body.risks === undefined ? [] : riskIds(body.risks))
+        db.prepare("INSERT INTO vendor_risks (vendor_id, risk_id) VALUES (?, ?)").run(id, rid);
       note("vendor", id, who, "created", null, name);
       db.exec("COMMIT");
     } catch (err) {
@@ -482,7 +592,8 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     };
     if ("name" in body) {
       const name = str(body.name, "name", 2, 120);
-      if (name !== v.name && db.prepare("SELECT 1 FROM vendors WHERE name = ?").get(name)) throw new RiskError(409, "conflict", "A vendor with this name exists.");
+      if (name !== v.name && db.prepare("SELECT 1 FROM vendors WHERE name = ?").get(name))
+        throw new RiskError(409, "conflict", "A vendor with this name exists.");
       change("name", "name", v.name, name);
     }
     if ("service" in body) change("service", "service", v.service, str(body.service, "service", 0, 300));
@@ -502,12 +613,15 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       }
     }
     const linked = "risks" in body ? riskIds(body.risks) : null;
-    const before = (db.prepare("SELECT risk_id FROM vendor_risks WHERE vendor_id = ? ORDER BY risk_id").all(id) as Array<{ risk_id: string }>).map((x) => x.risk_id);
+    const before = (db.prepare("SELECT risk_id FROM vendor_risks WHERE vendor_id = ? ORDER BY risk_id").all(id) as Array<{ risk_id: string }>).map(
+      (x) => x.risk_id,
+    );
     const keyOf = (ids: string[]) => ids.map((i) => `R-${(db.prepare("SELECT number FROM risks WHERE id = ?").get(i) as { number: number }).number}`).sort();
     db.exec("BEGIN IMMEDIATE");
     try {
       const cols = Object.keys(set);
-      if (cols.length) db.prepare(`UPDATE vendors SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(...cols.map((c) => set[c]!), now(), id);
+      if (cols.length)
+        db.prepare(`UPDATE vendors SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(...cols.map((c) => set[c]!), now(), id);
       for (const [field, from, to] of changes) note("vendor", id, who, field, from, to);
       if (linked && JSON.stringify([...linked].sort()) !== JSON.stringify(before)) {
         db.prepare("DELETE FROM vendor_risks WHERE vendor_id = ?").run(id);
@@ -541,7 +655,9 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     }
     const offset = decodeCursor(cursor);
     const rows = db
-      .prepare(`SELECT * FROM vendors ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY CASE criticality WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END DESC, name LIMIT ? OFFSET ?`)
+      .prepare(
+        `SELECT * FROM vendors ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY CASE criticality WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END DESC, name LIMIT ? OFFSET ?`,
+      )
       .all(...args, limit + 1, offset) as Array<Record<string, any>>;
     return { items: rows.slice(0, limit).map(presentVendor), ...(rows.length > limit && { nextCursor: encodeCursor(offset + limit) }) };
   }
@@ -560,7 +676,16 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       cells.set(`${l}-${i}`, c);
     }
     const out = [];
-    for (let l = 5; l >= 1; l--) for (let i = 1; i <= 5; i++) out.push({ likelihood: l, impact: i, score: l * i, band: bandOf(l * i), count: cells.get(`${l}-${i}`)?.count ?? 0, keys: cells.get(`${l}-${i}`)?.keys ?? [] });
+    for (let l = 5; l >= 1; l--)
+      for (let i = 1; i <= 5; i++)
+        out.push({
+          likelihood: l,
+          impact: i,
+          score: l * i,
+          band: bandOf(l * i),
+          count: cells.get(`${l}-${i}`)?.count ?? 0,
+          keys: cells.get(`${l}-${i}`)?.keys ?? [],
+        });
     return { view, cells: out };
   }
 
@@ -647,9 +772,16 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     addDocument(id: string, body: Record<string, unknown>, who: string) {
       const v = vendorRow(id);
       exact(body, ["title", "url"]);
-      if ((db.prepare("SELECT COUNT(*) AS n FROM vendor_documents WHERE vendor_id = ?").get(id) as { n: number }).n >= 30) throw bad("A vendor has at most 30 documents.");
+      if ((db.prepare("SELECT COUNT(*) AS n FROM vendor_documents WHERE vendor_id = ?").get(id) as { n: number }).n >= 30)
+        throw bad("A vendor has at most 30 documents.");
       const doc = { id: randomUUID(), title: str(body.title, "title", 1, 200), url: webUrl(body.url), createdAt: now() };
-      db.prepare("INSERT INTO vendor_documents (id, vendor_id, title, url, created_at) VALUES (?, ?, ?, ?, ?)").run(doc.id, v.id, doc.title, doc.url, doc.createdAt);
+      db.prepare("INSERT INTO vendor_documents (id, vendor_id, title, url, created_at) VALUES (?, ?, ?, ?, ?)").run(
+        doc.id,
+        v.id,
+        doc.title,
+        doc.url,
+        doc.createdAt,
+      );
       note("vendor", id, who, "document added", null, doc.title);
       return doc;
     },

@@ -8,7 +8,21 @@ import { AuthError, mergeOpenApi, sendProblem, type Auth, type Role } from "@ope
 import { log } from "./log.ts";
 import { countRequest, renderMetrics } from "./metrics.ts";
 import type { ProductLink } from "./products.ts";
-import { BANDS, CATEGORIES, RATINGS, RiskError, STATUSES, VENDOR_STATUSES, parseLimit, type Band, type Category, type ProblemCode, type Risk, type RiskFilter, type VendorFilter } from "./risk.ts";
+import {
+  BANDS,
+  CATEGORIES,
+  RATINGS,
+  RiskError,
+  STATUSES,
+  VENDOR_STATUSES,
+  parseLimit,
+  type Band,
+  type Category,
+  type ProblemCode,
+  type Risk,
+  type RiskFilter,
+  type VendorFilter,
+} from "./risk.ts";
 
 export interface AppOptions {
   db: DatabaseSync;
@@ -32,7 +46,14 @@ export interface AppOptions {
 
 function metricsText(risk: Risk, version: string) {
   const s = risk.summary();
-  return renderMetrics(version, { open: s.risks.byBand, overdue: s.risks.overdue, reviewDue: s.risks.reviewDue, accepted: s.risks.accepted, vendors: s.vendors.total, vendorsOverdue: s.vendors.overdue });
+  return renderMetrics(version, {
+    open: s.risks.byBand,
+    overdue: s.risks.overdue,
+    reviewDue: s.risks.reviewDue,
+    accepted: s.risks.accepted,
+    vendors: s.vendors.total,
+    vendorsOverdue: s.vendors.overdue,
+  });
 }
 
 /** Serves only /metrics, for a port that is not exposed with the rest (RISK_METRICS_PORT). */
@@ -66,7 +87,8 @@ function send(res: ServerResponse, status: number, body: string | Buffer, type =
   res.end(body);
 }
 
-const json = (res: ServerResponse, status: number, data: unknown, headers?: Record<string, string>) => send(res, status, JSON.stringify(data), "application/json", headers);
+const json = (res: ServerResponse, status: number, data: unknown, headers?: Record<string, string>) =>
+  send(res, status, JSON.stringify(data), "application/json", headers);
 
 const TITLES: Record<ProblemCode, string> = {
   "invalid-token": "Invalid token",
@@ -118,7 +140,8 @@ async function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 
 async function readJson(req: IncomingMessage, limit = 64 * 1024): Promise<Record<string, unknown>> {
   const raw = await readBody(req, limit).catch((err: unknown) => {
-    if (err instanceof RiskError && err.code === "payload-too-large") throw new RiskError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
+    if (err instanceof RiskError && err.code === "payload-too-large")
+      throw new RiskError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
     throw err;
   });
   try {
@@ -175,20 +198,36 @@ function query(url: URL) {
 
 function riskFilter(url: URL): RiskFilter {
   const status = url.searchParams.get("status") ?? undefined;
-  if (status !== undefined && status !== "active" && status !== "review-due" && !STATUSES.includes(status as never)) throw new RiskError(422, "invalid-body", `status must be active, review-due or one of ${STATUSES.join(", ")}.`);
+  if (status !== undefined && status !== "active" && status !== "review-due" && !STATUSES.includes(status as never))
+    throw new RiskError(422, "invalid-body", `status must be active, review-due or one of ${STATUSES.join(", ")}.`);
   const category = url.searchParams.get("category") ?? undefined;
-  if (category !== undefined && !CATEGORIES.includes(category as Category)) throw new RiskError(422, "invalid-body", `category must be one of ${CATEGORIES.join(", ")}.`);
+  if (category !== undefined && !CATEGORIES.includes(category as Category))
+    throw new RiskError(422, "invalid-body", `category must be one of ${CATEGORIES.join(", ")}.`);
   const owner = url.searchParams.get("owner") ?? undefined;
   if (owner && owner.length > 100) throw new RiskError(422, "invalid-body", "owner must be at most 100 characters.");
-  return { status: status as RiskFilter["status"], band: bands(url, "band"), category: category as Category | undefined, owner, overdue: bool(url, "overdue"), q: query(url) };
+  return {
+    status: status as RiskFilter["status"],
+    band: bands(url, "band"),
+    category: category as Category | undefined,
+    owner,
+    overdue: bool(url, "overdue"),
+    q: query(url),
+  };
 }
 
 function vendorFilter(url: URL): VendorFilter {
   const status = url.searchParams.get("status") ?? undefined;
-  if (status !== undefined && !VENDOR_STATUSES.includes(status as never)) throw new RiskError(422, "invalid-body", `status must be one of ${VENDOR_STATUSES.join(", ")}.`);
+  if (status !== undefined && !VENDOR_STATUSES.includes(status as never))
+    throw new RiskError(422, "invalid-body", `status must be one of ${VENDOR_STATUSES.join(", ")}.`);
   const rating = url.searchParams.get("rating") ?? undefined;
   if (rating !== undefined && !RATINGS.includes(rating as never)) throw new RiskError(422, "invalid-body", `rating must be one of ${RATINGS.join(", ")}.`);
-  return { status: status as VendorFilter["status"], criticality: bands(url, "criticality"), rating: rating as VendorFilter["rating"], overdue: bool(url, "overdue"), q: query(url) };
+  return {
+    status: status as VendorFilter["status"],
+    criticality: bands(url, "criticality"),
+    rating: rating as VendorFilter["rating"],
+    overdue: bool(url, "overdue"),
+    q: query(url),
+  };
 }
 
 export function createApp({ db, risk, version, auth, adminToken, webDir, docsDir, openapi, serveMetrics = true, products = [] }: AppOptions) {
@@ -199,7 +238,8 @@ export function createApp({ db, risk, version, auth, adminToken, webDir, docsDir
   };
   const cursor = (url: URL) => url.searchParams.get("cursor") ?? undefined;
   const limit = (url: URL) => parseLimit(url.searchParams.get("limit"));
-  const page = <K extends string, T>(key: K, p: { items: T[]; nextCursor?: string }) => ({ [key]: p.items, ...(p.nextCursor && { nextCursor: p.nextCursor }) }) as Record<K, T[]> & { nextCursor?: string };
+  const page = <K extends string, T>(key: K, p: { items: T[]; nextCursor?: string }) =>
+    ({ [key]: p.items, ...(p.nextCursor && { nextCursor: p.nextCursor }) }) as Record<K, T[]> & { nextCursor?: string };
 
   const routes: Route[] = [
     { method: "GET", path: "/api/v1/version", auth: "none", handle: () => ({ product: "risk", version }) },
@@ -230,24 +270,69 @@ export function createApp({ db, risk, version, auth, adminToken, webDir, docsDir
     },
     { method: "GET", path: "/api/v1/risks", auth: "viewer", handle: ({ url }) => page("risks", risk.listRisks(riskFilter(url), cursor(url), limit(url))) },
     { method: "GET", path: "/api/v1/risks/:id", auth: "viewer", handle: ({ params }) => risk.risk(params[0]!) },
-    { method: "PATCH", path: "/api/v1/risks/:id", auth: "editor", handle: async ({ params, body, actor }) => risk.updateRisk(params[0]!, await body(), actor()) },
+    {
+      method: "PATCH",
+      path: "/api/v1/risks/:id",
+      auth: "editor",
+      handle: async ({ params, body, actor }) => risk.updateRisk(params[0]!, await body(), actor()),
+    },
     { method: "DELETE", path: "/api/v1/risks/:id", auth: "admin", handle: ({ res, params }) => (risk.deleteRisk(params[0]!), noContent(res)) },
     // Accepting a risk is a decision somebody answers for, so it is an admin's (ADR 0049).
-    { method: "POST", path: "/api/v1/risks/:id/accept", auth: "admin", handle: async ({ params, body, actor }) => risk.accept(params[0]!, await body(), actor()) },
+    {
+      method: "POST",
+      path: "/api/v1/risks/:id/accept",
+      auth: "admin",
+      handle: async ({ params, body, actor }) => risk.accept(params[0]!, await body(), actor()),
+    },
     { method: "POST", path: "/api/v1/risks/:id/review", auth: "editor", handle: ({ params, actor }) => risk.reviewRisk(params[0]!, actor()) },
     { method: "GET", path: "/api/v1/risks/:id/history", auth: "viewer", handle: ({ params }) => ({ history: risk.riskHistory(params[0]!) }) },
-    { method: "POST", path: "/api/v1/risks/:id/links", auth: "editor", handle: async ({ res, params, body, actor }) => json(res, 201, risk.addLink(params[0]!, await body(), actor())) },
-    { method: "DELETE", path: "/api/v1/risks/:id/links/:linkId", auth: "editor", handle: ({ res, params, actor }) => (risk.deleteLink(params[0]!, params[1]!, actor()), noContent(res)) },
+    {
+      method: "POST",
+      path: "/api/v1/risks/:id/links",
+      auth: "editor",
+      handle: async ({ res, params, body, actor }) => json(res, 201, risk.addLink(params[0]!, await body(), actor())),
+    },
+    {
+      method: "DELETE",
+      path: "/api/v1/risks/:id/links/:linkId",
+      auth: "editor",
+      handle: ({ res, params, actor }) => (risk.deleteLink(params[0]!, params[1]!, actor()), noContent(res)),
+    },
 
-    { method: "POST", path: "/api/v1/vendors", auth: "editor", handle: async ({ res, body, actor }) => json(res, 201, risk.createVendor(await body(), actor())) },
-    { method: "GET", path: "/api/v1/vendors", auth: "viewer", handle: ({ url }) => page("vendors", risk.listVendors(vendorFilter(url), cursor(url), limit(url))) },
+    {
+      method: "POST",
+      path: "/api/v1/vendors",
+      auth: "editor",
+      handle: async ({ res, body, actor }) => json(res, 201, risk.createVendor(await body(), actor())),
+    },
+    {
+      method: "GET",
+      path: "/api/v1/vendors",
+      auth: "viewer",
+      handle: ({ url }) => page("vendors", risk.listVendors(vendorFilter(url), cursor(url), limit(url))),
+    },
     { method: "GET", path: "/api/v1/vendors/:id", auth: "viewer", handle: ({ params }) => risk.vendor(params[0]!) },
-    { method: "PATCH", path: "/api/v1/vendors/:id", auth: "editor", handle: async ({ params, body, actor }) => risk.updateVendor(params[0]!, await body(), actor()) },
+    {
+      method: "PATCH",
+      path: "/api/v1/vendors/:id",
+      auth: "editor",
+      handle: async ({ params, body, actor }) => risk.updateVendor(params[0]!, await body(), actor()),
+    },
     { method: "DELETE", path: "/api/v1/vendors/:id", auth: "admin", handle: ({ res, params }) => (risk.deleteVendor(params[0]!), noContent(res)) },
     { method: "POST", path: "/api/v1/vendors/:id/review", auth: "editor", handle: ({ params, actor }) => risk.reviewVendor(params[0]!, actor()) },
     { method: "GET", path: "/api/v1/vendors/:id/history", auth: "viewer", handle: ({ params }) => ({ history: risk.vendorHistory(params[0]!) }) },
-    { method: "POST", path: "/api/v1/vendors/:id/documents", auth: "editor", handle: async ({ res, params, body, actor }) => json(res, 201, risk.addDocument(params[0]!, await body(), actor())) },
-    { method: "DELETE", path: "/api/v1/vendors/:id/documents/:docId", auth: "editor", handle: ({ res, params, actor }) => (risk.deleteDocument(params[0]!, params[1]!, actor()), noContent(res)) },
+    {
+      method: "POST",
+      path: "/api/v1/vendors/:id/documents",
+      auth: "editor",
+      handle: async ({ res, params, body, actor }) => json(res, 201, risk.addDocument(params[0]!, await body(), actor())),
+    },
+    {
+      method: "DELETE",
+      path: "/api/v1/vendors/:id/documents/:docId",
+      auth: "editor",
+      handle: ({ res, params, actor }) => (risk.deleteDocument(params[0]!, params[1]!, actor()), noContent(res)),
+    },
   ];
 
   const compiled = routes.map((r) => ({ ...r, re: new RegExp(`^${r.path.replace(/:[A-Za-z]+/g, "([^/]+)")}$`) }));

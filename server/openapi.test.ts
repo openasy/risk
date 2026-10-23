@@ -45,7 +45,9 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   // A response is either inline or a $ref to components/responses; build the JSON pointer to its schema either way.
   const shared = declared!.$ref?.split("/").pop();
   const response = shared ? spec.components.responses[shared]! : declared!;
-  const at = shared ? `openapi#/components/responses/${shared}` : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
+  const at = shared
+    ? `openapi#/components/responses/${shared}`
+    : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
 
   if (!response.content) {
     expect(res.headers.get("content-length") ?? "0", `${method} ${path} ${res.status} should have no body`).toBe("0");
@@ -61,7 +63,10 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   return { res, body };
 }
 
-const auth = (token: string, body?: string, type = "application/json") => ({ headers: { authorization: `Bearer ${token}`, "content-type": type }, ...(body !== undefined && { body }) });
+const auth = (token: string, body?: string, type = "application/json") => ({
+  headers: { authorization: `Bearer ${token}`, "content-type": type },
+  ...(body !== undefined && { body }),
+});
 const admin = (body?: unknown) => auth(ADMIN_TOKEN, body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body));
 
 describe("openapi.json", () => {
@@ -106,10 +111,36 @@ describe("responses match openapi.json", () => {
   });
 
   it("risks: add, change, accept, review", async () => {
-    const made = (await call("POST", "/api/v1/risks", admin({ title: "Customer data in a public bucket", category: "security", likelihood: 4, impact: 5, residualLikelihood: 2, residualImpact: 3, owner: "Ada", external: { source: "dast", reference: "shop/40018" }, links: [{ kind: "finding", product: "dast", reference: "shop/40018" }] }))).body as { id: string; key: string };
+    const made = (
+      await call(
+        "POST",
+        "/api/v1/risks",
+        admin({
+          title: "Customer data in a public bucket",
+          category: "security",
+          likelihood: 4,
+          impact: 5,
+          residualLikelihood: 2,
+          residualImpact: 3,
+          owner: "Ada",
+          external: { source: "dast", reference: "shop/40018" },
+          links: [{ kind: "finding", product: "dast", reference: "shop/40018" }],
+        }),
+      )
+    ).body as { id: string; key: string };
     risk = made.id;
     key = made.key;
-    await call("POST", "/api/v1/risks", admin({ title: "Customer data in a public bucket", category: "security", likelihood: 4, impact: 5, external: { source: "dast", reference: "shop/40018" } }));
+    await call(
+      "POST",
+      "/api/v1/risks",
+      admin({
+        title: "Customer data in a public bucket",
+        category: "security",
+        likelihood: 4,
+        impact: 5,
+        external: { source: "dast", reference: "shop/40018" },
+      }),
+    );
     await call("POST", "/api/v1/risks", admin({ title: "x", category: "security", likelihood: 4, impact: 5 }));
     await call("POST", "/api/v1/risks", admin("nope"));
     await call("POST", "/api/v1/risks", {});
@@ -127,7 +158,12 @@ describe("responses match openapi.json", () => {
     await call("POST", "/api/v1/risks/{id}/review", { method: "POST" }, r("/review"));
     await call("POST", "/api/v1/risks/{id}/accept", admin({ reason: "Cost is above the loss", approver: "CISO", expiresAt: inDays(30) }), r("/accept"));
     await call("POST", "/api/v1/risks/{id}/accept", admin({ reason: "x" }), r("/accept"));
-    await call("POST", "/api/v1/risks/{id}/accept", admin({ reason: "Cost is above the loss", approver: "CISO", expiresAt: inDays(30) }), "/api/v1/risks/R-404/accept");
+    await call(
+      "POST",
+      "/api/v1/risks/{id}/accept",
+      admin({ reason: "Cost is above the loss", approver: "CISO", expiresAt: inDays(30) }),
+      "/api/v1/risks/R-404/accept",
+    );
     await call("POST", "/api/v1/risks/{id}/accept", { method: "POST" }, r("/accept"));
     await call("PATCH", "/api/v1/risks/{id}", admin({ status: "closed" }), r());
     await call("POST", "/api/v1/risks/{id}/accept", admin({ reason: "Cost is above the loss", approver: "CISO", expiresAt: inDays(30) }), r("/accept"));
@@ -143,7 +179,16 @@ describe("responses match openapi.json", () => {
     await call("GET", "/api/v1/risks/{id}/history", admin(), r("/history"));
     await call("GET", "/api/v1/risks/{id}/history", admin(), "/api/v1/risks/R-404/history");
     await call("GET", "/api/v1/risks/{id}/history", {}, r("/history"));
-    linkId = ((await call("POST", "/api/v1/risks/{id}/links", admin({ kind: "control", product: "compliance", reference: "A.8.24", url: "https://compliance.example.com/c/1" }), r("/links"))).body as { id: string }).id;
+    linkId = (
+      (
+        await call(
+          "POST",
+          "/api/v1/risks/{id}/links",
+          admin({ kind: "control", product: "compliance", reference: "A.8.24", url: "https://compliance.example.com/c/1" }),
+          r("/links"),
+        )
+      ).body as { id: string }
+    ).id;
     await call("POST", "/api/v1/risks/{id}/links", admin({ kind: "control", product: "compliance", reference: "A.8.24" }), r("/links"));
     await call("POST", "/api/v1/risks/{id}/links", admin({ kind: "magic", reference: "x" }), r("/links"));
     await call("POST", "/api/v1/risks/{id}/links", admin({ kind: "other", reference: "x" }), "/api/v1/risks/R-404/links");
@@ -154,7 +199,15 @@ describe("responses match openapi.json", () => {
   });
 
   it("vendors", async () => {
-    vendor = ((await call("POST", "/api/v1/vendors", admin({ name: "Acme Payments", service: "Card processing", dataClasses: ["financial"], criticality: "critical", risks: [key] }))).body as { id: string }).id;
+    vendor = (
+      (
+        await call(
+          "POST",
+          "/api/v1/vendors",
+          admin({ name: "Acme Payments", service: "Card processing", dataClasses: ["financial"], criticality: "critical", risks: [key] }),
+        )
+      ).body as { id: string }
+    ).id;
     await call("POST", "/api/v1/vendors", admin({ name: "Acme Payments", criticality: "low" }));
     await call("POST", "/api/v1/vendors", admin({ name: "Other", criticality: "huge" }));
     await call("POST", "/api/v1/vendors", admin("nope"));
@@ -177,7 +230,11 @@ describe("responses match openapi.json", () => {
     await call("GET", "/api/v1/vendors/{id}/history", admin(), v("/history"));
     await call("GET", "/api/v1/vendors/{id}/history", admin(), "/api/v1/vendors/missing/history");
     await call("GET", "/api/v1/vendors/{id}/history", {}, v("/history"));
-    docId = ((await call("POST", "/api/v1/vendors/{id}/documents", admin({ title: "SOC 2 report", url: "https://drive.example.com/soc2" }), v("/documents"))).body as { id: string }).id;
+    docId = (
+      (await call("POST", "/api/v1/vendors/{id}/documents", admin({ title: "SOC 2 report", url: "https://drive.example.com/soc2" }), v("/documents"))).body as {
+        id: string;
+      }
+    ).id;
     await call("POST", "/api/v1/vendors/{id}/documents", admin({ title: "x", url: "file:///etc/passwd" }), v("/documents"));
     await call("POST", "/api/v1/vendors/{id}/documents", admin({ title: "x", url: "https://x.example.com" }), "/api/v1/vendors/missing/documents");
     await call("POST", "/api/v1/vendors/{id}/documents", { method: "POST" }, v("/documents"));

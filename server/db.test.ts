@@ -30,8 +30,12 @@ describe("openDb", () => {
 
   it("rejects values outside the model", () => {
     const db = openDb(":memory:");
-    const risk = (l: number, c = "security") => () =>
-      db.exec(`INSERT INTO risks (id, number, title, category, likelihood, impact, status, review_interval_days, next_review, created_at, updated_at) VALUES ('${Math.random()}', ${Math.floor(Math.random() * 1e6)}, 't', '${c}', ${l}, 3, 'identified', 90, 'd', 'n', 'n')`);
+    const risk =
+      (l: number, c = "security") =>
+      () =>
+        db.exec(
+          `INSERT INTO risks (id, number, title, category, likelihood, impact, status, review_interval_days, next_review, created_at, updated_at) VALUES ('${Math.random()}', ${Math.floor(Math.random() * 1e6)}, 't', '${c}', ${l}, 3, 'identified', 90, 'd', 'n', 'n')`,
+        );
     expect(risk(6)).toThrow();
     expect(risk(0)).toThrow();
     expect(risk(3, "weather")).toThrow();

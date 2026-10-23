@@ -26,7 +26,8 @@ export async function startApp(opts: Partial<AppOptions> & { version: string; cl
   const auth = createAuth({ db, product: "risk", productName: "OpenAsy Risk", origin: base });
   const { clock: _clock, ...rest } = opts;
   handler = createApp({ db, risk, auth, adminToken: ADMIN_TOKEN, ...rest });
-  const admin = (path: string, init: RequestInit = {}) => fetch(base + path, { ...init, headers: { authorization: `Bearer ${ADMIN_TOKEN}`, "content-type": "application/json", ...init.headers } });
+  const admin = (path: string, init: RequestInit = {}) =>
+    fetch(base + path, { ...init, headers: { authorization: `Bearer ${ADMIN_TOKEN}`, "content-type": "application/json", ...init.headers } });
   const send = (method: string, path: string, body?: unknown) => admin(path, { method, ...(body !== undefined && { body: JSON.stringify(body) }) });
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()));
   return { db, risk, auth, base, admin, send, close, clock };
