@@ -28,6 +28,7 @@ import {
   type Column,
   type ProductId,
   useThemePreference,
+  useAgo,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth } from "@openasy/auth/react";
 import { Building2, ClipboardCheck, Grid3x3, KeyRound, LogIn, LogOut, Plus, Settings2, Trash2, UserRound, Users, X } from "lucide-react";
@@ -47,17 +48,7 @@ import {
   type Treatment,
   type Vendor,
 } from "./api.ts";
-
-function ago(iso: string | null | undefined): string {
-  if (!iso) return "never";
-  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86_400)} d ago`;
-}
-
-const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+import { useT } from "./i18n.ts";
 const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
 
 const PAGES = ["heatmap", "setup", "account", "members", "signin", "tokens"] as const;
@@ -123,6 +114,7 @@ function Code({ children }: { children: ReactNode }) {
 // ---------------------------------------------------------------- Register
 
 function NewRiskDialog({ open, onClose, call, onCreated }: { open: boolean; onClose: () => void; call: Call; onCreated: (key: string) => void }) {
+  const t = useT();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("security");
   const [likelihood, setLikelihood] = useState("3");
@@ -150,29 +142,29 @@ function NewRiskDialog({ open, onClose, call, onCreated }: { open: boolean; onCl
     <Dialog
       open={open}
       onOpenChange={(o) => !o && close()}
-      title="Add a risk"
-      description="Say what could go wrong, how likely it is and how much it would hurt. The score follows."
+      title={t("newRiskDialog.addARisk")}
+      description={t("newRiskDialog.sayWhatCouldGoWrong")}
       onSubmit={submit}
       footer={
         <>
           <Button type="button" onClick={close}>
-            Cancel
+            {t("newRiskDialog.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={title.trim().length < 3}>
-            Add risk
+            {t("newRiskDialog.addRisk")}
           </Button>
         </>
       }
     >
-      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} hint="What could go wrong." error={error} />
+      <TextField label={t("newRiskDialog.title")} value={title} onChange={(e) => setTitle(e.target.value)} hint={t("newRiskDialog.whatCouldGoWrong")} error={error} />
       <div className="grid grid-cols-3 gap-2">
-        <SelectField label="Category" value={category} onChange={(e) => setCategory(e.target.value as Category)} options={options(CATEGORIES)} />
-        <SelectField label="Likelihood" value={likelihood} onChange={(e) => setLikelihood(e.target.value)} options={scale} />
-        <SelectField label="Impact" value={impact} onChange={(e) => setImpact(e.target.value)} options={scale} />
+        <SelectField label={t("newRiskDialog.category")} value={category} onChange={(e) => setCategory(e.target.value as Category)} options={options(CATEGORIES)} />
+        <SelectField label={t("newRiskDialog.likelihood")} value={likelihood} onChange={(e) => setLikelihood(e.target.value)} options={scale} />
+        <SelectField label={t("newRiskDialog.impact")} value={impact} onChange={(e) => setImpact(e.target.value)} options={scale} />
       </div>
-      <TextField label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)} hint="Who answers for it. Optional." />
+      <TextField label={t("newRiskDialog.owner")} value={owner} onChange={(e) => setOwner(e.target.value)} hint={t("newRiskDialog.whoAnswersForItOptional")} />
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Description</span>
+        <span className="font-medium">{t("newRiskDialog.description")}</span>
         <textarea className="risk-textarea w-full rounded-md border border-line-strong bg-surface px-2.5 py-2 text-sm text-fg" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
     </Dialog>
@@ -182,6 +174,7 @@ function NewRiskDialog({ open, onClose, call, onCreated }: { open: boolean; onCl
 type View = "active" | "review-due" | "closed" | "all";
 
 function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary; reload: () => void }) {
+  const t = useT();
   const { can } = useAuth();
   const [view, setView] = useState<View>("active");
   const [bands, setBands] = useState<string[]>([]);
@@ -212,10 +205,10 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
   const loadMore = () => more && query(more).then((r) => (setRows((x) => [...(x ?? []), ...r.risks]), setMore(r.nextCursor)));
 
   const columns: Column<Risk>[] = [
-    { id: "key", header: "Risk", width: "76px", sortValue: (r) => r.number, cell: (r) => <span className="font-mono text-xs">{r.key}</span> },
+    { id: "key", header: t("registerPage.risk"), width: "76px", sortValue: (r) => r.number, cell: (r) => <span className="font-mono text-xs">{r.key}</span> },
     {
       id: "title",
-      header: "Title",
+      header: t("registerPage.title"),
       width: "34%",
       sortValue: (r) => r.title,
       cell: (r) => (
@@ -227,25 +220,25 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
         </span>
       ),
     },
-    { id: "band", header: "Score", width: "130px", sortValue: (r) => r.score, cell: (r) => <BandBadge band={r.band} score={r.score} /> },
-    { id: "residual", header: "Residual", width: "130px", cell: (r) => (r.residual ? <BandBadge band={r.residual.band} score={r.residual.score} /> : <span className="text-xs text-fg-muted">–</span>) },
-    { id: "status", header: "Status", cell: (r) => <StatusPill risk={r} /> },
-    { id: "owner", header: "Owner", sortValue: (r) => r.owner ?? "", cell: (r) => <span className="text-xs">{r.owner ?? "–"}</span> },
-    { id: "review", header: "Next review", sortValue: (r) => r.nextReview, cell: (r) => (r.status === "closed" ? "–" : <Due date={r.nextReview} overdue={r.overdue} />) },
+    { id: "band", header: t("registerPage.score"), width: "130px", sortValue: (r) => r.score, cell: (r) => <BandBadge band={r.band} score={r.score} /> },
+    { id: "residual", header: t("registerPage.residual"), width: "130px", cell: (r) => (r.residual ? <BandBadge band={r.residual.band} score={r.residual.score} /> : <span className="text-xs text-fg-muted">–</span>) },
+    { id: "status", header: t("registerPage.status"), cell: (r) => <StatusPill risk={r} /> },
+    { id: "owner", header: t("registerPage.owner"), sortValue: (r) => r.owner ?? "", cell: (r) => <span className="text-xs">{r.owner ?? "–"}</span> },
+    { id: "review", header: t("registerPage.nextReview"), sortValue: (r) => r.nextReview, cell: (r) => (r.status === "closed" ? "–" : <Due date={r.nextReview} overdue={r.overdue} />) },
   ];
   const s = summary;
   const due = reviews ? reviews.risks.length + reviews.vendors.length : 0;
   return (
     <>
       <PageHeader
-        title="Risk register"
-        description={s ? `${plural(s.risks.open, "open risk")} · ${plural(s.vendors.total, "vendor")}` : undefined}
+        title={t("registerPage.riskRegister")}
+        description={s ? `${t("plurals.openRisk", { count: s.risks.open })} · ${t("plurals.vendor", { count: s.vendors.total })}` : undefined}
         actions={
           <>
-            <SearchInput label="Search risks" className="w-56" value={q} onChange={(e) => setQ(e.target.value)} />
+            <SearchInput label={t("registerPage.searchRisks")} className="w-56" value={q} onChange={(e) => setQ(e.target.value)} />
             {can("editor") && (
               <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-                Add risk
+                {t("registerPage.addRisk")}
               </Button>
             )}
           </>
@@ -253,16 +246,16 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
       />
       {s && (
         <KpiGrid minWidth={150}>
-          <KpiCard label="Critical" value={s.risks.byBand.critical} footer={<SeverityBadge severity="critical" />} />
-          <KpiCard label="High" value={s.risks.byBand.high} footer={<SeverityBadge severity="high" />} />
-          <KpiCard label="Medium" value={s.risks.byBand.medium} footer={<SeverityBadge severity="medium" />} />
-          <KpiCard label="Low" value={s.risks.byBand.low} footer={<SeverityBadge severity="low" />} />
-          <KpiCard label="Reviews overdue" value={s.risks.overdue + s.vendors.overdue} tone={s.risks.overdue + s.vendors.overdue ? "warning" : "success"} />
-          <KpiCard label="Accepted" value={s.risks.accepted} tone="info" />
+          <KpiCard label={t("registerPage.critical")} value={s.risks.byBand.critical} footer={<SeverityBadge severity="critical" />} />
+          <KpiCard label={t("registerPage.high")} value={s.risks.byBand.high} footer={<SeverityBadge severity="high" />} />
+          <KpiCard label={t("registerPage.medium")} value={s.risks.byBand.medium} footer={<SeverityBadge severity="medium" />} />
+          <KpiCard label={t("registerPage.low")} value={s.risks.byBand.low} footer={<SeverityBadge severity="low" />} />
+          <KpiCard label={t("registerPage.reviewsOverdue")} value={s.risks.overdue + s.vendors.overdue} tone={s.risks.overdue + s.vendors.overdue ? "warning" : "success"} />
+          <KpiCard label={t("registerPage.accepted")} value={s.risks.accepted} tone="info" />
         </KpiGrid>
       )}
       {due > 0 && reviews && (
-        <Panel title={`${plural(due, "review")} overdue`} description="Review the risk or vendor, or change its status.">
+        <Panel title={t("registerPage.overdue", { plural: t("plurals.review", { count: due }) })} description={t("registerPage.reviewTheRiskOrVendor")}>
           <ul className="risk-list flex flex-col gap-1 text-sm">
             {reviews.risks.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2">
@@ -270,7 +263,7 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
                   {r.key} {r.title}
                 </a>
                 <StatusPill risk={r} />
-                <span className="text-xs text-fg-muted">{r.status === "review-due" ? "acceptance ran out" : `due ${day(r.nextReview)}`}</span>
+                <span className="text-xs text-fg-muted">{r.status === "review-due" ? t("registerPage.acceptanceRanOut") : t("registerPage.due", { day: day(r.nextReview) })}</span>
               </li>
             ))}
             {reviews.vendors.map((v) => (
@@ -278,7 +271,7 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
                 <a href={`/vendors/${v.id}`} className="font-medium">
                   {v.name}
                 </a>
-                <Badge>Vendor</Badge>
+                <Badge>{t("registerPage.vendor")}</Badge>
                 <span className="text-xs text-fg-muted">due {day(v.nextReview)}</span>
               </li>
             ))}
@@ -286,40 +279,40 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
         </Panel>
       )}
       <Tabs<View>
-        label="Register views"
+        label={t("registerPage.registerViews")}
         value={view}
         onChange={setView}
         items={[
-          { value: "active", label: "Open" },
-          { value: "review-due", label: "Review due" },
-          { value: "closed", label: "Closed" },
-          { value: "all", label: "All" },
+          { value: "active", label: t("registerPage.open") },
+          { value: "review-due", label: t("registerPage.reviewDue") },
+          { value: "closed", label: t("registerPage.closed") },
+          { value: "all", label: t("registerPage.all") },
         ]}
       />
       <FilterBar onClear={() => (setBands([]), setCategory("all"), setQ(""))}>
-        <FacetFilter label="Band" selected={bands} onChange={setBands} options={BANDS.map((b) => ({ value: b, label: label(b), count: view === "active" ? s?.risks.byBand[b] : undefined }))} />
-        <SelectField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} options={[{ value: "all", label: "Every category" }, ...options(CATEGORIES)]} />
+        <FacetFilter label={t("registerPage.band")} selected={bands} onChange={setBands} options={BANDS.map((b) => ({ value: b, label: label(b), count: view === "active" ? s?.risks.byBand[b] : undefined }))} />
+        <SelectField label={t("registerPage.category")} value={category} onChange={(e) => setCategory(e.target.value)} options={[{ value: "all", label: t("registerPage.everyCategory") }, ...options(CATEGORIES)]} />
       </FilterBar>
       <Panel
-        title="Highest score first"
+        title={t("registerPage.highestScoreFirst")}
         flush
         footer={
           more ? (
             <Button size="sm" onClick={loadMore}>
-              Load more
+              {t("registerPage.loadMore")}
             </Button>
           ) : undefined
         }
       >
         <DataTable
-          label="Risks"
+          label={t("registerPage.risks")}
           columns={columns}
           rows={rows ?? []}
           loading={!rows}
           getRowId={(r) => r.id}
           minWidth={900}
           pageSize={50}
-          empty={<EmptyState title="No risks here">{view === "active" && s && s.risks.open === 0 ? "Add the first risk, or let another product open one from a finding." : "Nothing matches these filters."}</EmptyState>}
+          empty={<EmptyState title={t("registerPage.noRisksHere")}>{view === "active" && s && s.risks.open === 0 ? t("registerPage.addTheFirstRiskOr") : t("registerPage.nothingMatchesTheseFilters")}</EmptyState>}
         />
       </Panel>
       <NewRiskDialog open={adding} onClose={() => setAdding(false)} call={call} onCreated={(key) => (reload(), navigate(`/risks/${key}`))} />
@@ -342,6 +335,7 @@ const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString(
 // ---------------------------------------------------------------- One risk
 
 function EditRiskDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call; onClose: () => void; onSaved: () => void }) {
+  const msg = useT();
   const [title, setTitle] = useState(risk.title);
   const [description, setDescription] = useState(risk.description);
   const [category, setCategory] = useState<Category>(risk.category);
@@ -384,49 +378,50 @@ function EditRiskDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Ca
     <Dialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={`Change ${risk.key}`}
-      description="Every change is kept in the history, with who made it."
+      title={msg("editRiskDialog.change", { key: risk.key })}
+      description={msg("editRiskDialog.everyChangeIsKeptIn")}
       onSubmit={save}
       footer={
         <>
           <Button type="button" onClick={onClose}>
-            Cancel
+            {msg("editRiskDialog.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={title.trim().length < 3}>
-            Save
+            {msg("editRiskDialog.save")}
           </Button>
         </>
       }
     >
-      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <TextArea label="Description" value={description} onChange={setDescription} />
+      <TextField label={msg("editRiskDialog.title")} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <TextArea label={msg("editRiskDialog.description")} value={description} onChange={setDescription} />
       <div className="grid grid-cols-3 gap-2">
-        <SelectField label="Category" value={category} onChange={(e) => setCategory(e.target.value as Category)} options={options(CATEGORIES)} />
-        <SelectField label="Likelihood" value={likelihood} onChange={(e) => setLikelihood(e.target.value)} options={scale} />
-        <SelectField label="Impact" value={impact} onChange={(e) => setImpact(e.target.value)} options={scale} />
+        <SelectField label={msg("editRiskDialog.category")} value={category} onChange={(e) => setCategory(e.target.value as Category)} options={options(CATEGORIES)} />
+        <SelectField label={msg("editRiskDialog.likelihood")} value={likelihood} onChange={(e) => setLikelihood(e.target.value)} options={scale} />
+        <SelectField label={msg("editRiskDialog.impact")} value={impact} onChange={(e) => setImpact(e.target.value)} options={scale} />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <SelectField label="Treatment" value={treatment} onChange={(e) => setTreatment(e.target.value)} options={[{ value: "", label: "Not decided" }, ...options(TREATMENTS)]} />
-        <SelectField label="After treatment: likelihood" value={rl} onChange={(e) => setRl(e.target.value)} options={[{ value: "", label: "–" }, ...scale]} />
-        <SelectField label="After treatment: impact" value={ri} onChange={(e) => setRi(e.target.value)} options={[{ value: "", label: "–" }, ...scale]} />
+        <SelectField label={msg("editRiskDialog.treatment")} value={treatment} onChange={(e) => setTreatment(e.target.value)} options={[{ value: "", label: msg("editRiskDialog.notDecided") }, ...options(TREATMENTS)]} />
+        <SelectField label={msg("editRiskDialog.afterTreatmentLikelihood")} value={rl} onChange={(e) => setRl(e.target.value)} options={[{ value: "", label: "–" }, ...scale]} />
+        <SelectField label={msg("editRiskDialog.afterTreatmentImpact")} value={ri} onChange={(e) => setRi(e.target.value)} options={[{ value: "", label: "–" }, ...scale]} />
       </div>
-      <TextArea label="Plan" value={plan} onChange={setPlan} hint="What is being done about it, by whom and by when." />
+      <TextArea label={msg("editRiskDialog.plan")} value={plan} onChange={setPlan} hint={msg("editRiskDialog.whatIsBeingDoneAbout")} />
       <div className="grid grid-cols-3 gap-2">
-        <TextField label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
+        <TextField label={msg("editRiskDialog.owner")} value={owner} onChange={(e) => setOwner(e.target.value)} />
         <SelectField
-          label="Status"
+          label={msg("editRiskDialog.status")}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           options={[...(risk.status === "accepted" || risk.status === "review-due" ? [{ value: "", label: label(risk.status) }] : []), ...options(["identified", "assessing", "treating", "closed"])]}
         />
-        <TextField label="Review every (days)" inputMode="numeric" value={interval} onChange={(e) => setIntervalDays(e.target.value)} />
+        <TextField label={msg("editRiskDialog.reviewEveryDays")} inputMode="numeric" value={interval} onChange={(e) => setIntervalDays(e.target.value)} />
       </div>
-      <TextField label="Tags" value={tags} onChange={(e) => setTags(e.target.value)} hint="Comma-separated." error={error} />
+      <TextField label={msg("editRiskDialog.tags")} value={tags} onChange={(e) => setTags(e.target.value)} hint={msg("editRiskDialog.commaSeparated")} error={error} />
     </Dialog>
   );
 }
 
 function AcceptDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call; onClose: () => void; onSaved: () => void }) {
+  const t = useT();
   const [reason, setReason] = useState("");
   const [approver, setApprover] = useState("");
   const [days, setDays] = useState("180");
@@ -444,31 +439,31 @@ function AcceptDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call
     <Dialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={`Accept ${risk.key}`}
-      description="Accepting a risk is a decision somebody answers for. When it ends, the risk is due for review again."
+      title={t("acceptDialog.accept", { key: risk.key })}
+      description={t("acceptDialog.acceptingARiskIsA")}
       onSubmit={save}
       footer={
         <>
           <Button type="button" onClick={onClose}>
-            Cancel
+            {t("acceptDialog.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={reason.trim().length < 3 || approver.trim().length < 2}>
-            Accept risk
+            {t("acceptDialog.acceptRisk")}
           </Button>
         </>
       }
     >
-      <TextArea label="Reason" value={reason} onChange={setReason} hint="Why living with it is the right call, for now." />
+      <TextArea label={t("acceptDialog.reason")} value={reason} onChange={setReason} hint={t("acceptDialog.whyLivingWithItIs")} />
       <div className="grid gap-2 sm:grid-cols-2">
-        <TextField label="Approved by" value={approver} onChange={(e) => setApprover(e.target.value)} hint="The person who answers for it." />
+        <TextField label={t("acceptDialog.approvedBy")} value={approver} onChange={(e) => setApprover(e.target.value)} hint={t("acceptDialog.thePersonWhoAnswersFor")} />
         <SelectField
-          label="Until"
+          label={t("acceptDialog.until")}
           value={days}
           onChange={(e) => setDays(e.target.value)}
           options={[
-            { value: "90", label: "90 days" },
-            { value: "180", label: "180 days" },
-            { value: "365", label: "1 year" },
+            { value: "90", label: t("acceptDialog.n90Days") },
+            { value: "180", label: t("acceptDialog.n180Days") },
+            { value: "365", label: t("acceptDialog.n1Year") },
           ]}
         />
       </div>
@@ -480,6 +475,7 @@ function AcceptDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call
 const LINK_KINDS: LinkKind[] = ["control", "finding", "incident", "vendor", "other"];
 
 function LinkDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call; onClose: () => void; onSaved: () => void }) {
+  const t = useT();
   const [kind, setKind] = useState<LinkKind>("control");
   const [product, setProduct] = useState("");
   const [reference, setReference] = useState("");
@@ -498,47 +494,50 @@ function LinkDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call; 
     <Dialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={`Link to ${risk.key}`}
-      description="A reference to a control, a finding or an incident elsewhere. Nothing is fetched from the other product."
+      title={t("linkDialog.linkTo", { key: risk.key })}
+      description={t("linkDialog.aReferenceToAControl")}
       onSubmit={save}
       footer={
         <>
           <Button type="button" onClick={onClose}>
-            Cancel
+            {t("linkDialog.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={!reference.trim()}>
-            Add link
+            {t("linkDialog.addLink")}
           </Button>
         </>
       }
     >
       <div className="grid gap-2 sm:grid-cols-2">
-        <SelectField label="Kind" value={kind} onChange={(e) => setKind(e.target.value as LinkKind)} options={options(LINK_KINDS)} />
-        <TextField label="Product" value={product} onChange={(e) => setProduct(e.target.value)} hint="Optional, such as vulnerabilities." />
+        <SelectField label={t("linkDialog.kind")} value={kind} onChange={(e) => setKind(e.target.value as LinkKind)} options={options(LINK_KINDS)} />
+        <TextField label={t("linkDialog.product")} value={product} onChange={(e) => setProduct(e.target.value)} hint={t("linkDialog.optionalSuchAsVulnerabilities")} />
       </div>
-      <TextField label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} hint="Such as ISO 27001 A.8.8, CVE-2026-1234 or INC-12." />
-      <TextField label="Address" value={url} onChange={(e) => setUrl(e.target.value)} hint="Optional link to it." error={error} />
+      <TextField label={t("linkDialog.reference")} value={reference} onChange={(e) => setReference(e.target.value)} hint={t("linkDialog.suchAsIso27001A")} />
+      <TextField label={t("linkDialog.address")} value={url} onChange={(e) => setUrl(e.target.value)} hint={t("linkDialog.optionalLinkToIt")} error={error} />
     </Dialog>
   );
 }
 
 function HistoryPanel({ call, path }: { call: Call; path: string }) {
+  const t = useT();
   const [rows, setRows] = useState<HistoryEntry[]>();
   useEffect(() => void call<{ history: HistoryEntry[] }>(path).then((r) => setRows(r.history), () => setRows([])), [call, path]);
   const columns: Column<HistoryEntry>[] = [
-    { id: "at", header: "When", sortValue: (h) => h.at, cell: (h) => <span className="whitespace-nowrap text-xs">{new Date(h.at).toLocaleString()}</span> },
-    { id: "who", header: "Who", cell: (h) => <span className="text-xs">{h.who}</span> },
-    { id: "field", header: "What", cell: (h) => <span className="text-xs">{label(h.field)}</span> },
-    { id: "change", header: "Change", width: "50%", cell: (h) => <span className="risk-clamp text-xs text-fg-muted" title={`${h.from ?? ""} → ${h.to ?? ""}`}>{h.from === null ? (h.to ?? "") : `${h.from} → ${h.to ?? "–"}`}</span> },
+    { id: "at", header: t("historyPanel.when"), sortValue: (h) => h.at, cell: (h) => <span className="whitespace-nowrap text-xs">{new Date(h.at).toLocaleString()}</span> },
+    { id: "who", header: t("historyPanel.who"), cell: (h) => <span className="text-xs">{h.who}</span> },
+    { id: "field", header: t("historyPanel.what"), cell: (h) => <span className="text-xs">{label(h.field)}</span> },
+    { id: "change", header: t("historyPanel.change"), width: "50%", cell: (h) => <span className="risk-clamp text-xs text-fg-muted" title={`${h.from ?? ""} → ${h.to ?? ""}`}>{h.from === null ? (h.to ?? "") : `${h.from} → ${h.to ?? "–"}`}</span> },
   ];
   return (
-    <Panel title="History" description="Kept as it happened; nobody edits it." flush>
-      <DataTable label="History" columns={columns} rows={rows ?? []} loading={!rows} getRowId={(h) => `${h.at}-${h.field}-${h.to ?? ""}`} minWidth={640} pageSize={20} empty={<EmptyState title="No changes yet">Changes show here with who made them.</EmptyState>} />
+    <Panel title={t("historyPanel.history")} description={t("historyPanel.keptAsItHappenedNobody")} flush>
+      <DataTable label={t("historyPanel.history")} columns={columns} rows={rows ?? []} loading={!rows} getRowId={(h) => `${h.at}-${h.field}-${h.to ?? ""}`} minWidth={640} pageSize={20} empty={<EmptyState title={t("historyPanel.noChangesYet")}>{t("historyPanel.changesShowHereWithWho")}</EmptyState>} />
     </Panel>
   );
 }
 
 function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => void }) {
+  const ago = useAgo();
+  const msg = useT();
   const { can } = useAuth();
   const [risk, setRisk] = useState<Risk | null>();
   const [dialog, setDialog] = useState<"edit" | "accept" | "link" | "delete">();
@@ -551,52 +550,52 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
 
   if (risk === null)
     return (
-      <EmptyState title="Risk not found">
-        It may have been deleted. <a href="/risks">Back to the register</a>.
+      <EmptyState title={msg("riskPage.riskNotFound")}>
+        {msg("riskPage.itMayHaveBeenDeleted")}{" "}<a href="/risks">{msg("riskPage.backToTheRegister")}</a>.
       </EmptyState>
     );
   if (!risk) return null;
 
   const linkColumns: Column<NonNullable<Risk["links"]>[number]>[] = [
-    { id: "kind", header: "Kind", width: "110px", cell: (l) => <Badge>{label(l.kind)}</Badge> },
-    { id: "ref", header: "Reference", width: "40%", cell: (l) => (l.url ? <a href={l.url} target="_blank" rel="noopener noreferrer" className="risk-wrap">{l.reference}</a> : <span className="risk-wrap">{l.reference}</span>) },
-    { id: "product", header: "Product", cell: (l) => <span className="text-xs">{l.product ?? ""}</span> },
-    { id: "added", header: "Added", cell: (l) => <span className="text-xs">{ago(l.createdAt)}</span> },
-    ...(can("editor") ? [{ id: "remove", header: "", align: "right" as const, width: "56px", cell: (l: NonNullable<Risk["links"]>[number]) => <IconButton label={`Remove ${l.reference}`} size="sm" onClick={() => void act(`/api/v1/risks/${risk.key}/links/${l.id}`, { method: "DELETE" })}><X /></IconButton> }] : []),
+    { id: "kind", header: msg("riskPage.kind"), width: "110px", cell: (l) => <Badge>{label(l.kind)}</Badge> },
+    { id: "ref", header: msg("riskPage.reference"), width: "40%", cell: (l) => (l.url ? <a href={l.url} target="_blank" rel="noopener noreferrer" className="risk-wrap">{l.reference}</a> : <span className="risk-wrap">{l.reference}</span>) },
+    { id: "product", header: msg("riskPage.product"), cell: (l) => <span className="text-xs">{l.product ?? ""}</span> },
+    { id: "added", header: msg("riskPage.added"), cell: (l) => <span className="text-xs">{ago(l.createdAt)}</span> },
+    ...(can("editor") ? [{ id: "remove", header: "", align: "right" as const, width: "56px", cell: (l: NonNullable<Risk["links"]>[number]) => <IconButton label={msg("riskPage.remove", { reference: l.reference })} size="sm" onClick={() => void act(`/api/v1/risks/${risk.key}/links/${l.id}`, { method: "DELETE" })}><X /></IconButton> }] : []),
   ];
   return (
     <>
       <PageHeader
         title={`${risk.key} ${risk.title}`}
-        description={`${label(risk.category)}${risk.owner ? ` · owned by ${risk.owner}` : " · no owner yet"}${risk.external ? ` · opened by ${risk.external.source} (${risk.external.reference})` : ""} · added ${ago(risk.createdAt)}`}
+        description={msg("riskPage.added2", { label: label(risk.category), value: risk.owner ? ` · owned by ${risk.owner}` : " · no owner yet", value2: risk.external ? ` · opened by ${risk.external.source} (${risk.external.reference})` : "", ago: ago(risk.createdAt) })}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             <StatusPill risk={risk} />
             {can("editor") && risk.status !== "closed" && (
               <Button icon={<ClipboardCheck />} onClick={() => void act(`/api/v1/risks/${risk.key}/review`, { method: "POST" })}>
-                Mark reviewed
+                {msg("riskPage.markReviewed")}
               </Button>
             )}
-            {can("admin") && risk.status !== "closed" && <Button onClick={() => setDialog("accept")}>Accept</Button>}
-            {can("editor") && <Button onClick={() => setDialog("edit")}>Change</Button>}
+            {can("admin") && risk.status !== "closed" && <Button onClick={() => setDialog("accept")}>{msg("riskPage.accept")}</Button>}
+            {can("editor") && <Button onClick={() => setDialog("edit")}>{msg("riskPage.change")}</Button>}
           </span>
         }
       />
       {error && <p className="m-0 text-sm text-danger">{error}</p>}
       <KpiGrid minWidth={150}>
-        <KpiCard label="Score" value={<BandBadge band={risk.band} score={risk.score} />} footer={`likelihood ${risk.likelihood} × impact ${risk.impact}`} />
-        <KpiCard label="After treatment" value={risk.residual ? <BandBadge band={risk.residual.band} score={risk.residual.score} /> : "–"} footer={risk.treatment ? label(risk.treatment) : "No treatment yet"} />
-        <KpiCard label="Next review" value={risk.status === "closed" ? "–" : day(risk.nextReview)} tone={risk.overdue ? "warning" : undefined} footer={risk.lastReview ? `last ${day(risk.lastReview)}` : "never reviewed"} />
-        <KpiCard label="Links" value={risk.linkCount} />
+        <KpiCard label={msg("riskPage.score")} value={<BandBadge band={risk.band} score={risk.score} />} footer={msg("riskPage.likelihoodImpact", { likelihood: risk.likelihood, impact: risk.impact })} />
+        <KpiCard label={msg("riskPage.afterTreatment")} value={risk.residual ? <BandBadge band={risk.residual.band} score={risk.residual.score} /> : "–"} footer={risk.treatment ? label(risk.treatment) : msg("riskPage.noTreatmentYet")} />
+        <KpiCard label={msg("riskPage.nextReview")} value={risk.status === "closed" ? "–" : day(risk.nextReview)} tone={risk.overdue ? "warning" : undefined} footer={risk.lastReview ? msg("riskPage.last", { day: day(risk.lastReview) }) : msg("riskPage.neverReviewed")} />
+        <KpiCard label={msg("riskPage.links")} value={risk.linkCount} />
       </KpiGrid>
       {risk.acceptance && (
-        <Callout tone={risk.acceptance.expired ? "warning" : "info"} title={risk.acceptance.expired ? `Acceptance ended ${day(risk.acceptance.until.slice(0, 10))}` : `Accepted by ${risk.acceptance.approver} until ${day(risk.acceptance.until.slice(0, 10))}`}>
+        <Callout tone={risk.acceptance.expired ? "warning" : "info"} title={risk.acceptance.expired ? msg("riskPage.acceptanceEnded", { day: day(risk.acceptance.until.slice(0, 10)) }) : msg("riskPage.acceptedByUntil", { approver: risk.acceptance.approver, day: day(risk.acceptance.until.slice(0, 10)) })}>
           {risk.acceptance.reason}
         </Callout>
       )}
       <div className="grid gap-2.5 lg:grid-cols-2">
-        <Panel title="What could go wrong">
-          <p className="risk-prose m-0 text-sm">{risk.description || <span className="text-fg-muted">No description.</span>}</p>
+        <Panel title={msg("riskPage.whatCouldGoWrong")}>
+          <p className="risk-prose m-0 text-sm">{risk.description || <span className="text-fg-muted">{msg("riskPage.noDescription")}</span>}</p>
           {risk.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {risk.tags.map((t) => (
@@ -605,29 +604,29 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
             </div>
           )}
         </Panel>
-        <Panel title="Plan">
-          <p className="risk-prose m-0 text-sm">{risk.plan || <span className="text-fg-muted">No plan yet.</span>}</p>
+        <Panel title={msg("riskPage.plan")}>
+          <p className="risk-prose m-0 text-sm">{risk.plan || <span className="text-fg-muted">{msg("riskPage.noPlanYet")}</span>}</p>
         </Panel>
       </div>
       <Panel
-        title="Links"
-        description="Controls, findings and incidents this risk is about."
+        title={msg("riskPage.links")}
+        description={msg("riskPage.controlsFindingsAndIncidentsThis")}
         flush
         footer={
           can("editor") ? (
             <Button size="sm" icon={<Plus />} onClick={() => setDialog("link")}>
-              Add link
+              {msg("riskPage.addLink")}
             </Button>
           ) : undefined
         }
       >
-        <DataTable label="Links" columns={linkColumns} rows={risk.links ?? []} getRowId={(l) => l.id} minWidth={560} empty={<EmptyState title="No links">Link the control it threatens, or the finding or incident it came from.</EmptyState>} />
+        <DataTable label={msg("riskPage.links")} columns={linkColumns} rows={risk.links ?? []} getRowId={(l) => l.id} minWidth={560} empty={<EmptyState title={msg("riskPage.noLinks")}>{msg("riskPage.linkTheControlItThreatens")}</EmptyState>} />
       </Panel>
       <HistoryPanel key={version} call={call} path={`/api/v1/risks/${risk.key}/history`} />
       {can("admin") && (
         <div>
           <Button icon={<Trash2 />} onClick={() => setDialog("delete")}>
-            Delete risk
+            {msg("riskPage.deleteRisk")}
           </Button>
         </div>
       )}
@@ -637,15 +636,15 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
       <Dialog
         open={dialog === "delete"}
         onOpenChange={(o) => !o && setDialog(undefined)}
-        title={`Delete ${risk.key}?`}
-        description="Its links and history are deleted with it. To keep the record, close it instead."
+        title={msg("riskPage.delete", { key: risk.key })}
+        description={msg("riskPage.itsLinksAndHistoryAre")}
         footer={
           <>
             <Button type="button" onClick={() => setDialog(undefined)}>
-              Cancel
+              {msg("riskPage.cancel")}
             </Button>
             <Button type="button" variant="primary" onClick={() => void call(`/api/v1/risks/${risk.key}`, { method: "DELETE" }).then(() => (reload(), navigate("/risks")), (err: Error) => setError(err.message))}>
-              Delete
+              {msg("riskPage.delete2")}
             </Button>
           </>
         }
@@ -661,25 +660,26 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
 const BAND_CELL: Record<Band, string> = { low: "bg-success-soft", medium: "bg-accent-soft", high: "bg-warning-soft", critical: "bg-danger-soft" };
 
 function HeatmapPage({ call }: { call: Call }) {
+  const t = useT();
   const [view, setView] = useState<"inherent" | "residual">("inherent");
   const [cells, setCells] = useState<HeatCell[]>();
   useEffect(() => void call<{ cells: HeatCell[] }>(`/api/v1/heatmap?view=${view}`).then((r) => setCells(r.cells), () => setCells([])), [call, view]);
   const at = (l: number, i: number) => cells?.find((c) => c.likelihood === l && c.impact === i);
   return (
     <>
-      <PageHeader title="Heat map" description="Open risks by likelihood and impact. Residual places a risk where it is after treatment; one not treated stays where it was." />
+      <PageHeader title={t("heatmapPage.heatMap")} description={t("heatmapPage.openRisksByLikelihoodAnd")} />
       <SegmentedControl
-        label="View"
+        label={t("heatmapPage.view")}
         value={view}
         onChange={setView}
         options={[
-          { value: "inherent", label: "Before treatment" },
-          { value: "residual", label: "After treatment" },
+          { value: "inherent", label: t("heatmapPage.beforeTreatment") },
+          { value: "residual", label: t("heatmapPage.afterTreatment") },
         ]}
       />
       <Panel>
         <div className="risk-heat">
-          <span className="risk-heat-axis text-xs text-fg-muted">Likelihood</span>
+          <span className="risk-heat-axis text-xs text-fg-muted">{t("heatmapPage.likelihood")}</span>
           {[5, 4, 3, 2, 1].map((l) => (
             <div key={l} className="risk-heat-row">
               <span className="w-4 text-center text-xs text-fg-muted">{l}</span>
@@ -711,10 +711,10 @@ function HeatmapPage({ call }: { call: Call }) {
               </span>
             ))}
           </div>
-          <span className="text-center text-xs text-fg-muted">Impact</span>
+          <span className="text-center text-xs text-fg-muted">{t("heatmapPage.impact")}</span>
         </div>
       </Panel>
-      <p className="m-0 text-xs text-fg-muted">Bands: low under 5, medium from 5, high from 10, critical from 17 (likelihood × impact).</p>
+      <p className="m-0 text-xs text-fg-muted">{t("heatmapPage.bandsLowUnder5Medium")}</p>
     </>
   );
 }
@@ -724,6 +724,7 @@ function HeatmapPage({ call }: { call: Call }) {
 const DATA_CLASSES = ["personal", "financial", "health", "credentials", "internal", "public"] as const;
 
 function VendorDialog({ call, vendor, onClose, onSaved }: { call: Call; vendor?: Vendor; onClose: () => void; onSaved: (v: Vendor) => void }) {
+  const t = useT();
   const [name, setName] = useState(vendor?.name ?? "");
   const [service, setService] = useState(vendor?.service ?? "");
   const [classes, setClasses] = useState<string[]>(vendor?.dataClasses ?? []);
@@ -761,26 +762,26 @@ function VendorDialog({ call, vendor, onClose, onSaved }: { call: Call; vendor?:
     <Dialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={vendor ? `Change ${vendor.name}` : "Add a vendor"}
-      description="A company that holds your data or runs part of your service, and how much it matters."
+      title={vendor ? t("vendorDialog.change", { name: vendor.name }) : t("vendorDialog.addAVendor")}
+      description={t("vendorDialog.aCompanyThatHoldsYour")}
       onSubmit={save}
       footer={
         <>
           <Button type="button" onClick={onClose}>
-            Cancel
+            {t("vendorDialog.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={!name.trim()}>
-            {vendor ? "Save" : "Add vendor"}
+            {vendor ? t("vendorDialog.save") : t("vendorDialog.addVendor")}
           </Button>
         </>
       }
     >
       <div className="grid gap-2 sm:grid-cols-2">
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <TextField label="Service" value={service} onChange={(e) => setService(e.target.value)} hint="What they do for you." />
+        <TextField label={t("vendorDialog.name")} value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField label={t("vendorDialog.service")} value={service} onChange={(e) => setService(e.target.value)} hint={t("vendorDialog.whatTheyDoForYou")} />
       </div>
       <fieldset className="m-0 flex flex-col gap-1 border-0 p-0">
-        <legend className="mb-1 text-sm font-medium">Data they hold</legend>
+        <legend className="mb-1 text-sm font-medium">{t("vendorDialog.dataTheyHold")}</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {DATA_CLASSES.map((c) => (
             <Checkbox key={c} label={label(c)} checked={classes.includes(c)} onChange={(e) => setClasses((xs) => (e.target.checked ? [...xs, c] : xs.filter((x) => x !== c)))} />
@@ -788,23 +789,24 @@ function VendorDialog({ call, vendor, onClose, onSaved }: { call: Call; vendor?:
         </div>
       </fieldset>
       <div className="grid grid-cols-3 gap-2">
-        <SelectField label="Criticality" value={criticality} onChange={(e) => setCriticality(e.target.value as Band)} options={options(["low", "medium", "high", "critical"])} />
-        <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as Vendor["status"])} options={options(["onboarding", "active", "offboarding"])} />
-        <SelectField label="Questionnaire" value={questionnaire} onChange={(e) => setQuestionnaire(e.target.value as Vendor["questionnaire"])} options={options(["not-sent", "sent", "received", "reviewed"])} />
+        <SelectField label={t("vendorDialog.criticality")} value={criticality} onChange={(e) => setCriticality(e.target.value as Band)} options={options(["low", "medium", "high", "critical"])} />
+        <SelectField label={t("vendorDialog.status")} value={status} onChange={(e) => setStatus(e.target.value as Vendor["status"])} options={options(["onboarding", "active", "offboarding"])} />
+        <SelectField label={t("vendorDialog.questionnaire")} value={questionnaire} onChange={(e) => setQuestionnaire(e.target.value as Vendor["questionnaire"])} options={options(["not-sent", "sent", "received", "reviewed"])} />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <SelectField label="Rating" value={rating} onChange={(e) => setRating(e.target.value)} options={[{ value: "", label: "Not rated" }, ...options(["low", "medium", "high"])]} />
-        <TextField label="Review every (days)" inputMode="numeric" value={interval} onChange={(e) => setIntervalDays(e.target.value)} />
-        <TextField label="Contact" value={contact} onChange={(e) => setContact(e.target.value)} />
+        <SelectField label={t("vendorDialog.rating")} value={rating} onChange={(e) => setRating(e.target.value)} options={[{ value: "", label: t("vendorDialog.notRated") }, ...options(["low", "medium", "high"])]} />
+        <TextField label={t("vendorDialog.reviewEveryDays")} inputMode="numeric" value={interval} onChange={(e) => setIntervalDays(e.target.value)} />
+        <TextField label={t("vendorDialog.contact")} value={contact} onChange={(e) => setContact(e.target.value)} />
       </div>
-      <TextField label="Risks" value={risks} onChange={(e) => setRisks(e.target.value)} hint="Keys of the risks they bring, such as R-3, R-7." />
-      <TextArea label="Notes" value={notes} onChange={setNotes} />
+      <TextField label={t("vendorDialog.risks")} value={risks} onChange={(e) => setRisks(e.target.value)} hint={t("vendorDialog.keysOfTheRisksThey")} />
+      <TextArea label={t("vendorDialog.notes")} value={notes} onChange={setNotes} />
       {error && <p className="m-0 text-xs text-danger">{error}</p>}
     </Dialog>
   );
 }
 
 function VendorsPage({ call, reload }: { call: Call; reload: () => void }) {
+  const t = useT();
   const { can } = useAuth();
   const [rows, setRows] = useState<Vendor[]>();
   const [q, setQ] = useState("");
@@ -817,7 +819,7 @@ function VendorsPage({ call, reload }: { call: Call; reload: () => void }) {
   const columns: Column<Vendor>[] = [
     {
       id: "name",
-      header: "Vendor",
+      header: t("vendorsPage.vendor"),
       width: "28%",
       sortValue: (v) => v.name,
       cell: (v) => (
@@ -829,33 +831,33 @@ function VendorsPage({ call, reload }: { call: Call; reload: () => void }) {
         </span>
       ),
     },
-    { id: "crit", header: "Criticality", sortValue: (v) => BANDS.indexOf(v.criticality), cell: (v) => <SeverityBadge severity={v.criticality} /> },
-    { id: "data", header: "Data", cell: (v) => <span className="text-xs">{v.dataClasses.map(label).join(", ") || "–"}</span> },
-    { id: "status", header: "Status", cell: (v) => <Badge>{label(v.status)}</Badge> },
-    { id: "rating", header: "Rating", cell: (v) => (v.rating ? <StatusBadge tone={v.rating === "high" ? "danger" : v.rating === "medium" ? "warning" : "success"}>{label(v.rating)}</StatusBadge> : <span className="text-xs text-fg-muted">Not rated</span>) },
-    { id: "review", header: "Next review", sortValue: (v) => v.nextReview, cell: (v) => <Due date={v.nextReview} overdue={v.overdue} /> },
+    { id: "crit", header: t("vendorsPage.criticality"), sortValue: (v) => BANDS.indexOf(v.criticality), cell: (v) => <SeverityBadge severity={v.criticality} /> },
+    { id: "data", header: t("vendorsPage.data"), cell: (v) => <span className="text-xs">{v.dataClasses.map(label).join(", ") || "–"}</span> },
+    { id: "status", header: t("vendorsPage.status"), cell: (v) => <Badge>{label(v.status)}</Badge> },
+    { id: "rating", header: t("vendorsPage.rating"), cell: (v) => (v.rating ? <StatusBadge tone={v.rating === "high" ? "danger" : v.rating === "medium" ? "warning" : "success"}>{label(v.rating)}</StatusBadge> : <span className="text-xs text-fg-muted">{t("vendorsPage.notRated")}</span>) },
+    { id: "review", header: t("vendorsPage.nextReview"), sortValue: (v) => v.nextReview, cell: (v) => <Due date={v.nextReview} overdue={v.overdue} /> },
   ];
   return (
     <>
       <PageHeader
-        title="Vendors"
-        description="Who holds your data or runs part of your service, how much it matters, and when you last looked."
+        title={t("vendorsPage.vendors")}
+        description={t("vendorsPage.whoHoldsYourDataOr")}
         actions={
           <>
-            <SearchInput label="Search vendors" className="w-56" value={q} onChange={(e) => setQ(e.target.value)} />
+            <SearchInput label={t("vendorsPage.searchVendors")} className="w-56" value={q} onChange={(e) => setQ(e.target.value)} />
             {can("editor") && (
               <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-                Add vendor
+                {t("vendorsPage.addVendor")}
               </Button>
             )}
           </>
         }
       />
       <FilterBar onClear={() => setCrit([])}>
-        <FacetFilter label="Criticality" selected={crit} onChange={setCrit} options={BANDS.map((b) => ({ value: b, label: label(b) }))} />
+        <FacetFilter label={t("vendorsPage.criticality")} selected={crit} onChange={setCrit} options={BANDS.map((b) => ({ value: b, label: label(b) }))} />
       </FilterBar>
       <Panel flush>
-        <DataTable label="Vendors" columns={columns} rows={rows ?? []} loading={!rows} getRowId={(v) => v.id} minWidth={860} pageSize={50} empty={<EmptyState title="No vendors">Add the companies that hold your data, starting with the critical ones.</EmptyState>} />
+        <DataTable label={t("vendorsPage.vendors")} columns={columns} rows={rows ?? []} loading={!rows} getRowId={(v) => v.id} minWidth={860} pageSize={50} empty={<EmptyState title={t("vendorsPage.noVendors")}>{t("vendorsPage.addTheCompaniesThatHold")}</EmptyState>} />
       </Panel>
       {adding && (
         <VendorDialog
@@ -873,6 +875,8 @@ function VendorsPage({ call, reload }: { call: Call; reload: () => void }) {
 }
 
 function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () => void }) {
+  const ago = useAgo();
+  const t = useT();
   const { can } = useAuth();
   const [vendor, setVendor] = useState<Vendor | null>();
   const [dialog, setDialog] = useState<"edit" | "doc" | "delete">();
@@ -887,8 +891,8 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
 
   if (vendor === null)
     return (
-      <EmptyState title="Vendor not found">
-        It may have been deleted. <a href="/vendors">Back to vendors</a>.
+      <EmptyState title={t("vendorPage.vendorNotFound")}>
+        {t("vendorPage.itMayHaveBeenDeleted")}{" "}<a href="/vendors">{t("vendorPage.backToVendors")}</a>.
       </EmptyState>
     );
   if (!vendor) return null;
@@ -902,22 +906,22 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
             <SeverityBadge severity={vendor.criticality} />
             {can("editor") && (
               <Button icon={<ClipboardCheck />} onClick={() => void act(`/api/v1/vendors/${vendor.id}/review`, { method: "POST" })}>
-                Mark reviewed
+                {t("vendorPage.markReviewed")}
               </Button>
             )}
-            {can("editor") && <Button onClick={() => setDialog("edit")}>Change</Button>}
+            {can("editor") && <Button onClick={() => setDialog("edit")}>{t("vendorPage.change")}</Button>}
           </span>
         }
       />
       {error && <p className="m-0 text-sm text-danger">{error}</p>}
       <KpiGrid minWidth={150}>
-        <KpiCard label="Status" value={label(vendor.status)} />
-        <KpiCard label="Questionnaire" value={label(vendor.questionnaire)} />
-        <KpiCard label="Rating" value={vendor.rating ? label(vendor.rating) : "Not rated"} />
-        <KpiCard label="Next review" value={day(vendor.nextReview)} tone={vendor.overdue ? "warning" : undefined} footer={vendor.lastReview ? `last ${day(vendor.lastReview)}` : "never reviewed"} />
+        <KpiCard label={t("vendorPage.status")} value={label(vendor.status)} />
+        <KpiCard label={t("vendorPage.questionnaire")} value={label(vendor.questionnaire)} />
+        <KpiCard label={t("vendorPage.rating")} value={vendor.rating ? label(vendor.rating) : "Not rated"} />
+        <KpiCard label={t("vendorPage.nextReview")} value={day(vendor.nextReview)} tone={vendor.overdue ? "warning" : undefined} footer={vendor.lastReview ? t("vendorPage.last", { day: day(vendor.lastReview) }) : t("vendorPage.neverReviewed")} />
       </KpiGrid>
       <div className="grid gap-2.5 lg:grid-cols-2">
-        <Panel title="Data they hold">
+        <Panel title={t("vendorPage.dataTheyHold")}>
           {vendor.dataClasses.length ? (
             <div className="flex flex-wrap gap-1">
               {vendor.dataClasses.map((c) => (
@@ -925,11 +929,11 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
               ))}
             </div>
           ) : (
-            <p className="m-0 text-sm text-fg-muted">None recorded.</p>
+            <p className="m-0 text-sm text-fg-muted">{t("vendorPage.noneRecorded")}</p>
           )}
           {vendor.notes && <p className="risk-prose mt-3 mb-0 text-sm">{vendor.notes}</p>}
         </Panel>
-        <Panel title="Risks they bring">
+        <Panel title={t("vendorPage.risksTheyBring")}>
           {vendor.risks.length ? (
             <ul className="risk-list flex flex-col gap-1 text-sm">
               {vendor.risks.map((r) => (
@@ -942,17 +946,17 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
               ))}
             </ul>
           ) : (
-            <p className="m-0 text-sm text-fg-muted">No risk linked. Add their keys under Change.</p>
+            <p className="m-0 text-sm text-fg-muted">{t("vendorPage.noRiskLinkedAddTheir")}</p>
           )}
         </Panel>
       </div>
       <Panel
-        title="Documents"
-        description="Links to reports, certificates and contracts. Nothing is stored or fetched."
+        title={t("vendorPage.documents")}
+        description={t("vendorPage.linksToReportsCertificatesAnd")}
         footer={
           can("editor") ? (
             <Button size="sm" icon={<Plus />} onClick={() => setDialog("doc")}>
-              Add document link
+              {t("vendorPage.addDocumentLink")}
             </Button>
           ) : undefined
         }
@@ -966,7 +970,7 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
                 </a>
                 <span className="text-xs text-fg-muted">{ago(d.createdAt)}</span>
                 {can("editor") && (
-                  <IconButton label={`Remove ${d.title}`} size="sm" onClick={() => void act(`/api/v1/vendors/${vendor.id}/documents/${d.id}`, { method: "DELETE" })}>
+                  <IconButton label={t("vendorPage.remove", { title: d.title })} size="sm" onClick={() => void act(`/api/v1/vendors/${vendor.id}/documents/${d.id}`, { method: "DELETE" })}>
                     <X />
                   </IconButton>
                 )}
@@ -974,14 +978,14 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
             ))}
           </ul>
         ) : (
-          <p className="m-0 text-sm text-fg-muted">No documents yet: a SOC 2 report, an ISO certificate or the data processing agreement.</p>
+          <p className="m-0 text-sm text-fg-muted">{t("vendorPage.noDocumentsYetASoc")}</p>
         )}
       </Panel>
       <HistoryPanel key={version} call={call} path={`/api/v1/vendors/${vendor.id}/history`} />
       {can("admin") && (
         <div>
           <Button icon={<Trash2 />} onClick={() => setDialog("delete")}>
-            Delete vendor
+            {t("vendorPage.deleteVendor")}
           </Button>
         </div>
       )}
@@ -989,34 +993,34 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
       <Dialog
         open={dialog === "doc"}
         onOpenChange={(o) => !o && setDialog(undefined)}
-        title="Add a document link"
+        title={t("vendorPage.addADocumentLink")}
         onSubmit={(e) => (e.preventDefault(), void act(`/api/v1/vendors/${vendor.id}/documents`, { method: "POST", body: JSON.stringify({ title: docTitle, url: docUrl }) }))}
         footer={
           <>
             <Button type="button" onClick={() => setDialog(undefined)}>
-              Cancel
+              {t("vendorPage.cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={!docTitle.trim() || !/^https?:\/\//.test(docUrl.trim())}>
-              Add
+              {t("vendorPage.add")}
             </Button>
           </>
         }
       >
-        <TextField label="Title" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} hint="Such as SOC 2 Type II, 2026." />
-        <TextField label="Address" value={docUrl} onChange={(e) => setDocUrl(e.target.value)} hint="Where the document is kept." />
+        <TextField label={t("vendorPage.title")} value={docTitle} onChange={(e) => setDocTitle(e.target.value)} hint={t("vendorPage.suchAsSoc2Type")} />
+        <TextField label={t("vendorPage.address")} value={docUrl} onChange={(e) => setDocUrl(e.target.value)} hint={t("vendorPage.whereTheDocumentIsKept")} />
       </Dialog>
       <Dialog
         open={dialog === "delete"}
         onOpenChange={(o) => !o && setDialog(undefined)}
-        title={`Delete ${vendor.name}?`}
-        description="Its documents and history are deleted with it. To keep the record, set it to offboarding instead."
+        title={t("vendorPage.delete", { name: vendor.name })}
+        description={t("vendorPage.itsDocumentsAndHistoryAre")}
         footer={
           <>
             <Button type="button" onClick={() => setDialog(undefined)}>
-              Cancel
+              {t("vendorPage.cancel")}
             </Button>
             <Button type="button" variant="primary" onClick={() => void call(`/api/v1/vendors/${vendor.id}`, { method: "DELETE" }).then(() => (reload(), navigate("/vendors")), (err: Error) => setError(err.message))}>
-              Delete
+              {t("vendorPage.delete2")}
             </Button>
           </>
         }
@@ -1030,22 +1034,23 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
 // ---------------------------------------------------------------- Setup
 
 function SetupPage() {
+  const t = useT();
   const origin = window.location.origin;
   return (
     <>
-      <PageHeader title="Setup" description="The register is kept by people. Other products can open a risk too, so a finding nobody fixes becomes a decision somebody makes." />
-      <Panel title="Open a risk from another product" description="With an API token with the editor role. The same source and reference open one risk, so sending it again changes nothing.">
+      <PageHeader title={t("setupPage.setup")} description={t("setupPage.theRegisterIsKeptBy")} />
+      <Panel title={t("setupPage.openARiskFromAnother")} description={t("setupPage.withAnApiTokenWith")}>
         <Code>{`curl -sf -X POST -H "Authorization: Bearer $RISK_API_TOKEN" -H 'content-type: application/json' \\
   -d '{"title":"Unpatched OpenSSL on the payment hosts","category":"security","likelihood":4,"impact":4,
        "external":{"source":"vulnerabilities","reference":"CVE-2026-1234"}}' \\
   "${origin}/api/v1/risks"`}</Code>
       </Panel>
-      <Panel title="What to know">
+      <Panel title={t("setupPage.whatToKnow")}>
         <ul className="risk-list flex flex-col gap-1 text-sm text-fg-muted">
-          <li>The score is likelihood times impact, each 1 to 5: low under 5, medium from 5, high from 10, critical from 17.</li>
-          <li>Accepting a risk needs a reason, an approver and an end within a year. When it ends, the risk is due for review again.</li>
-          <li>Risks and vendors have a review interval; overdue reviews show on the register and in /metrics.</li>
-          <li>Every change is kept in the history with who made it, and nobody edits the history.</li>
+          <li>{t("setupPage.theScoreIsLikelihoodTimes")}</li>
+          <li>{t("setupPage.acceptingARiskNeedsA")}</li>
+          <li>{t("setupPage.risksAndVendorsHaveA")}</li>
+          <li>{t("setupPage.everyChangeIsKeptIn")}</li>
         </ul>
       </Panel>
     </>
@@ -1056,8 +1061,9 @@ function SetupPage() {
 
 /** Account, Members, Sign-in and API tokens: the screens come from @openasy/auth. */
 function SettingsPage({ page }: { page: "account" | "members" | "signin" | "tokens" }) {
+  const t = useT();
   const { signOut, can } = useAuth();
-  if (page !== "account" && !can("admin")) return <EmptyState title="Admins only">Ask an admin of this risk for access.</EmptyState>;
+  if (page !== "account" && !can("admin")) return <EmptyState title={t("settingsPage.adminsOnly")}>{t("settingsPage.askAnAdminOfThis")}</EmptyState>;
   const titles = {
     account: ["Account", "Your profile, password, two-step verification and where you are signed in."],
     members: ["Members", "Who can sign in to this risk, and with which role. Viewers see everything; editors also add and change risks and vendors and mark reviews; admins also accept and delete risks, delete vendors, and manage members and tokens."],
@@ -1072,7 +1078,7 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
         actions={
           page === "account" && (
             <Button icon={<LogOut />} onClick={() => void signOut()}>
-              Sign out
+              {t("settingsPage.signOut")}
             </Button>
           )
         }
@@ -1083,6 +1089,7 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
 }
 
 function Product() {
+  const msg = useT();
   const [theme, setTheme] = useThemePreference();
   const { me, can } = useAuth();
   const route = parseRoute(usePath());
@@ -1106,20 +1113,20 @@ function Product() {
   }, [reload]);
 
   const nav = [
-    { id: "risks", label: "Register", icon: ClipboardCheck, count: summary?.risks.open },
-    { id: "heatmap", label: "Heat map", icon: Grid3x3 },
-    { id: "vendors", label: "Vendors", icon: Building2, count: summary?.vendors.total },
+    { id: "risks", label: msg("product.register"), icon: ClipboardCheck, count: summary?.risks.open },
+    { id: "heatmap", label: msg("product.heatMap"), icon: Grid3x3 },
+    { id: "vendors", label: msg("product.vendors"), icon: Building2, count: summary?.vendors.total },
   ];
   const footerNav = [
-    { id: "setup", label: "Setup", icon: Settings2 },
+    { id: "setup", label: msg("product.setup"), icon: Settings2 },
     ...(can("admin")
       ? [
-          { id: "members", label: "Members", icon: Users },
-          { id: "signin", label: "Sign-in", icon: LogIn },
-          { id: "tokens", label: "API tokens", icon: KeyRound },
+          { id: "members", label: msg("product.members"), icon: Users },
+          { id: "signin", label: msg("product.signIn"), icon: LogIn },
+          { id: "tokens", label: msg("product.apiTokens"), icon: KeyRound },
         ]
       : []),
-    { id: "account", label: "Account", icon: UserRound },
+    { id: "account", label: msg("product.account"), icon: UserRound },
   ];
   const active = route.page === "risk" ? "risks" : route.page === "vendor" ? "vendors" : route.page;
   const roleName = me.user.role.charAt(0).toUpperCase() + me.user.role.slice(1);
