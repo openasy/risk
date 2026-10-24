@@ -31,6 +31,7 @@ import {
   useAgo,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth, useInstallBrand } from "@openasy/auth/react";
+import colophon from "virtual:openasy-colophon";
 import { Building2, ClipboardCheck, Grid3x3, KeyRound, LogIn, LogOut, Plus, Settings2, Trash2, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
@@ -51,7 +52,7 @@ import {
 import { useT } from "./i18n.ts";
 const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
 
-const PAGES = ["heatmap", "setup", "account", "members", "signin", "tokens"] as const;
+const PAGES = ["heatmap", "setup", "account", "members", "signin", "tokens", "about"] as const;
 type Route = { page: "risks" | "vendors" | (typeof PAGES)[number] } | { page: "risk" | "vendor"; id: string };
 /** The first path segments that are pages of this UI, for followLinks. */
 export const PATHS = ["risks", "vendors", ...PAGES];
@@ -1454,6 +1455,7 @@ function Product() {
   return (
     <AppShell
       product="risk"
+      about={colophon}
       nav={nav}
       activeNav={active}
       onNavigate={(id) => navigate(`/${id}`)}
