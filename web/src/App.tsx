@@ -29,11 +29,13 @@ import {
   type ProductId,
   useThemePreference,
   useAgo,
+  toLocale,
+  useLocalePreference,
 } from "@openasy/ui";
-import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth, useInstallBrand } from "@openasy/auth/react";
+import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Building2, ClipboardCheck, Grid3x3, KeyRound, LogIn, LogOut, Plus, Settings2, Trash2, UserRound, Users, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Building2, ClipboardCheck, Grid3x3, KeyRound, LogIn, LogOut, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
   MfaSetupRequired,
@@ -50,6 +52,7 @@ import {
   type Vendor,
 } from "./api.ts";
 import { useT } from "./i18n.ts";
+import { search } from "./search.ts";
 const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
 
 const PAGES = ["heatmap", "setup", "account", "members", "signin", "tokens", "about"] as const;
@@ -1194,7 +1197,7 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
     <>
       <PageHeader
         title={vendor.name}
-        description={`${vendor.service || "No service described"}${vendor.contact ? ` · ${vendor.contact}` : ""}`}
+        description={`${vendor.service || t("vendorPage.noServiceDescribed")}${vendor.contact ? ` · ${vendor.contact}` : ""}`}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={vendor.criticality} />
@@ -1211,7 +1214,7 @@ function VendorPage({ call, id, reload }: { call: Call; id: string; reload: () =
       <KpiGrid minWidth={150}>
         <KpiCard label={t("vendorPage.status")} value={label(vendor.status)} />
         <KpiCard label={t("vendorPage.questionnaire")} value={label(vendor.questionnaire)} />
-        <KpiCard label={t("vendorPage.rating")} value={vendor.rating ? label(vendor.rating) : "Not rated"} />
+        <KpiCard label={t("vendorPage.rating")} value={vendor.rating ? label(vendor.rating) : t("vendorPage.notRated")} />
         <KpiCard
           label={t("vendorPage.nextReview")}
           value={day(vendor.nextReview)}
@@ -1412,11 +1415,14 @@ function SettingsPage({ page }: { page: "account" | "members" | "signin" | "toke
 function Product() {
   const msg = useT();
   const [theme, setTheme] = useThemePreference();
+  const [, setLocale] = useLocalePreference();
   const { me, can } = useAuth();
+  const account = useAccountMenu();
   const route = parseRoute(usePath());
   const [summary, setSummary] = useState<Summary>();
   const [products, setProducts] = useState<Array<ProductLink & { id: ProductId }>>([]);
   const call = useApi();
+  const onSearch = useMemo(() => search(call, msg), [call, msg]);
 
   // The install's other products (OPENASY_PRODUCTS), for the switcher; ids this UI does not know are left out.
   useEffect(() => {
@@ -1439,7 +1445,6 @@ function Product() {
     { id: "vendors", label: msg("product.vendors"), icon: Building2, count: summary?.vendors.total },
   ];
   const footerNav = [
-    { id: "setup", label: msg("product.setup"), icon: Settings2 },
     ...(can("admin")
       ? [
           { id: "members", label: msg("product.members"), icon: Users },
@@ -1455,6 +1460,7 @@ function Product() {
   return (
     <AppShell
       product="risk"
+      onSearch={onSearch}
       about={colophon}
       nav={nav}
       activeNav={active}
@@ -1464,10 +1470,12 @@ function Product() {
         const to = products.find((p) => p.id === id);
         if (to) window.location.assign(to.url);
       }}
-      footerNav={footerNav}
-      user={{ name: me.user.name, role: roleName }}
+      footerNav={account.settings(footerNav)}
+      setup
+      user={{ name: me.user.name, role: roleName, ...account.user }}
       theme={theme}
       onThemeChange={setTheme}
+      onLanguageChange={(code) => setLocale(toLocale(code))}
     >
       {route.page === "risks" ? (
         <RegisterPage call={call} summary={summary} reload={reload} />
@@ -1491,9 +1499,10 @@ function Product() {
 export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
+  const [locale] = useLocalePreference();
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
-    <BrandProvider theme={theme} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
+    <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
       <AuthGate product="OpenAsy Risk">
         <Product />
       </AuthGate>

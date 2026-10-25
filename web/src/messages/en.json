@@ -224,7 +224,9 @@
     "whereTheDocumentIsKept": "Where the document is kept.",
     "delete": "Delete {{name}}?",
     "itsDocumentsAndHistoryAre": "Its documents and history are deleted with it. To keep the record, set it to offboarding instead.",
-    "delete2": "Delete"
+    "delete2": "Delete",
+    "noServiceDescribed": "No service described",
+    "notRated": "Not rated"
   },
   "setupPage": {
     "setup": "Setup",
@@ -259,5 +261,11 @@
     "vendor_other": "{{count}} vendors",
     "review_one": "{{count}} review",
     "review_other": "{{count}} reviews"
+  },
+  "search": {
+    "risk": "Risk",
+    "vendor": "Vendor",
+    "riskDetail": "{{owner}} · {{status}}",
+    "noOwner": "No owner"
   }
 }
