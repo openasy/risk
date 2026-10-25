@@ -351,11 +351,11 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
           onChange={setBands}
           options={BANDS.map((b) => ({ value: b, label: label(b), count: view === "active" ? s?.risks.byBand[b] : undefined }))}
         />
-        <SelectField
+        <FacetFilter
           label={t("registerPage.category")}
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          options={[{ value: "all", label: t("registerPage.everyCategory") }, ...options(CATEGORIES)]}
+          selected={category === "all" ? [] : [category]}
+          onChange={(v) => setCategory(v[v.length - 1] ?? "all")}
+          options={options(CATEGORIES)}
         />
       </FilterBar>
       <Panel
