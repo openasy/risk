@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { controlOf, FRAMEWORKS } from "./frameworks.ts";
 
 export type ProblemCode = "invalid-token" | "invalid-json" | "invalid-body" | "not-found" | "conflict" | "payload-too-large" | "internal-error";
 
@@ -31,6 +32,7 @@ export type EffectiveStatus = Status | "review-due";
 
 const PRODUCT = /^[a-z][a-z0-9-]{0,39}$/;
 const MAX_LINKS = 50;
+const MAX_CONTROLS = 100;
 const MAX_ACCEPT_DAYS = 366;
 const DAY = 86_400_000;
 
@@ -116,6 +118,8 @@ export interface RiskFilter {
   owner?: string;
   overdue?: boolean;
   q?: string;
+  /** A control, as framework:id such as iso27001-2022:5.15: the risks it treats. */
+  control?: string;
 }
 
 export interface VendorFilter {
@@ -223,11 +227,87 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       tags: JSON.parse(r.tags) as string[],
       external: r.ext_source ? { source: r.ext_source as string, reference: r.ext_ref as string } : null,
       linkCount: (db.prepare("SELECT COUNT(*) AS n FROM risk_links WHERE risk_id = ?").get(r.id) as { n: number }).n,
+      controlCount: (db.prepare("SELECT COUNT(*) AS n FROM risk_controls WHERE risk_id = ?").get(r.id) as { n: number }).n,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
       closedAt: (r.closed_at as string | null) ?? null,
     };
-    return withLinks ? { ...out, links: links(r.id) } : out;
+    return withLinks ? { ...out, links: links(r.id), controls: controls(r.id) } : out;
+  }
+  const controls = (riskId: string) =>
+    (db.prepare("SELECT framework, control FROM risk_controls WHERE risk_id = ? ORDER BY framework, control").all(riskId) as Array<Record<string, any>>)
+      .map((c) => {
+        const found = controlOf(c.framework, c.control);
+        return { framework: c.framework as string, id: c.control as string, title: found?.control.title ?? null };
+      })
+      .sort((a, b) => a.framework.localeCompare(b.framework) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+  const controlName = (framework: string, id: string) => `${FRAMEWORKS.find((f) => f.id === framework)?.short ?? framework} ${id}`;
+
+  /** Sets the controls that treat a risk; each one added or removed is a line in its history. */
+  function setControls(riskId: string, body: Record<string, unknown>, who: string) {
+    exact(body, ["controls"]);
+    const list = body.controls;
+    if (!Array.isArray(list) || list.length > MAX_CONTROLS) throw bad(`controls is a list of at most ${MAX_CONTROLS} controls.`);
+    const wanted = new Map<string, { framework: string; id: string }>();
+    list.forEach((c: unknown, i) => {
+      const { framework, id, ...rest } = (c ?? {}) as Record<string, unknown>;
+      exact(rest, []);
+      if (typeof framework !== "string" || typeof id !== "string" || !controlOf(framework, id))
+        throw bad(`controls[${i}] must be { framework, id } of a control in GET /api/v1/frameworks, such as { "framework": "iso27001-2022", "id": "5.15" }.`);
+      wanted.set(`${framework}:${id}`, { framework, id });
+    });
+    const have = new Map(
+      (db.prepare("SELECT framework, control FROM risk_controls WHERE risk_id = ?").all(riskId) as Array<Record<string, any>>).map((c) => [
+        `${c.framework}:${c.control}`,
+        { framework: c.framework as string, id: c.control as string },
+      ]),
+    );
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const [key, c] of have)
+        if (!wanted.has(key)) {
+          db.prepare("DELETE FROM risk_controls WHERE risk_id = ? AND framework = ? AND control = ?").run(riskId, c.framework, c.id);
+          note("risk", riskId, who, "control removed", controlName(c.framework, c.id), null);
+        }
+      for (const [key, c] of wanted)
+        if (!have.has(key)) {
+          db.prepare("INSERT INTO risk_controls (risk_id, framework, control, created_at) VALUES (?, ?, ?, ?)").run(riskId, c.framework, c.id, now());
+          note("risk", riskId, who, "control added", null, controlName(c.framework, c.id));
+        }
+      if (have.size !== wanted.size || [...wanted.keys()].some((k) => !have.has(k)))
+        db.prepare("UPDATE risks SET updated_at = ? WHERE id = ?").run(now(), riskId);
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+    return controls(riskId);
+  }
+
+  /** A framework's controls, each with the open risks it treats: which controls cover a risk, and which none. */
+  function framework(id: string) {
+    const f = FRAMEWORKS.find((x) => x.id === id);
+    if (!f) throw notFound("The framework");
+    const rows = db
+      .prepare("SELECT c.control, r.* FROM risk_controls c JOIN risks r ON r.id = c.risk_id WHERE c.framework = ? AND r.status <> 'closed' ORDER BY r.number")
+      .all(id) as Array<Record<string, any>>;
+    const byControl = new Map<string, Array<Record<string, any>>>();
+    for (const r of rows) byControl.set(r.control, [...(byControl.get(r.control) ?? []), r]);
+    const controlsOut = f.controls.map((c) => ({
+      ...c,
+      products: c.products ?? [],
+      risks: (byControl.get(c.id) ?? []).map((r) => {
+        const p = presentRisk(r);
+        return { id: p.id, key: p.key, title: p.title, band: p.band, residualBand: p.residual?.band ?? null, status: p.status };
+      }),
+    }));
+    return {
+      id: f.id,
+      name: f.name,
+      short: f.short,
+      controls: controlsOut,
+      covered: controlsOut.filter((c) => c.risks.length > 0).length,
+    };
   }
   const links = (riskId: string) =>
     (db.prepare("SELECT * FROM risk_links WHERE risk_id = ? ORDER BY created_at, id").all(riskId) as Array<Record<string, any>>).map((l) => ({
@@ -472,6 +552,12 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
       const cond = `(status <> 'closed' AND (next_review <= ? OR ${expiredSql}))`;
       if (f.overdue) (where.push(cond), args.push(today(), t));
       else (where.push(`NOT ${cond}`), args.push(today(), t));
+    }
+    if (f.control) {
+      const i = f.control.lastIndexOf(":");
+      if (i < 1 || !controlOf(f.control.slice(0, i), f.control.slice(i + 1))) throw bad("control is framework:id of a control, such as iso27001-2022:5.15.");
+      where.push("id IN (SELECT risk_id FROM risk_controls WHERE framework = ? AND control = ?)");
+      args.push(f.control.slice(0, i), f.control.slice(i + 1));
     }
     if (f.q) {
       const like = `%${f.q.replace(/[\\%_]/g, "\\$&")}%`;
@@ -734,6 +820,9 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     accept,
     reviewRisk,
     riskHistory: (idOrKey: string) => history("risk", riskRow(idOrKey).id),
+    setControls: (idOrKey: string, body: Record<string, unknown>, who: string) => setControls(riskRow(idOrKey).id, body, who),
+    frameworks: () => FRAMEWORKS.map((f) => ({ id: f.id, name: f.name, short: f.short, controls: f.controls.length })),
+    framework,
     addLink(idOrKey: string, body: Record<string, unknown>, who: string) {
       const r = riskRow(idOrKey);
       const id = newLink(r.id, body, who);

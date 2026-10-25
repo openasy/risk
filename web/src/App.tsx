@@ -17,6 +17,7 @@ import {
   PageHeader,
   Panel,
   PRODUCT_IDS,
+  PRODUCTS,
   SearchInput,
   SegmentedControl,
   SelectField,
@@ -34,7 +35,7 @@ import {
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Building2, ClipboardCheck, Grid3x3, KeyRound, LogIn, LogOut, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import { Building2, ClipboardCheck, Grid3x3, KeyRound, ListChecks, LogIn, LogOut, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
@@ -42,6 +43,8 @@ import {
   Unauthorized,
   type Band,
   type Category,
+  type Framework,
+  type FrameworkSummary,
   type HeatCell,
   type HistoryEntry,
   type LinkKind,
@@ -55,7 +58,7 @@ import { useT } from "./i18n.ts";
 import { search } from "./search.ts";
 const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
 
-const PAGES = ["heatmap", "setup", "account", "members", "signin", "tokens", "about"] as const;
+const PAGES = ["heatmap", "controls", "setup", "account", "members", "signin", "tokens", "about"] as const;
 type Route = { page: "risks" | "vendors" | (typeof PAGES)[number] } | { page: "risk" | "vendor"; id: string };
 /** The first path segments that are pages of this UI, for followLinks. */
 export const PATHS = ["risks", "vendors", ...PAGES];
@@ -701,7 +704,7 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
   const msg = useT();
   const { can } = useAuth();
   const [risk, setRisk] = useState<Risk | null>();
-  const [dialog, setDialog] = useState<"edit" | "accept" | "link" | "delete">();
+  const [dialog, setDialog] = useState<"edit" | "accept" | "link" | "controls" | "delete">();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string>();
   const load = useCallback(() => void call<Risk>(`/api/v1/risks/${id}`).then(setRisk, () => setRisk(null)), [call, id]);
@@ -845,6 +848,33 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
           empty={<EmptyState title={msg("riskPage.noLinks")}>{msg("riskPage.linkTheControlItThreatens")}</EmptyState>}
         />
       </Panel>
+      <Panel
+        title={msg("riskPage.controls")}
+        description={msg("riskPage.theControlsOfIsoAnd")}
+        footer={
+          can("editor") ? (
+            <Button size="sm" icon={<ListChecks />} onClick={() => setDialog("controls")}>
+              {msg("riskPage.chooseControls")}
+            </Button>
+          ) : undefined
+        }
+      >
+        {risk.controls?.length ? (
+          <ul className="risk-list m-0 flex list-none flex-col gap-1 p-0 text-sm">
+            {risk.controls.map((c) => (
+              <li key={`${c.framework}:${c.id}`} className="flex items-center gap-2">
+                <Badge>{c.framework === "soc2-2017" ? "SOC 2" : "ISO 27001"}</Badge>
+                <a href={`/controls?framework=${c.framework}`} className="font-mono text-xs">
+                  {c.id}
+                </a>
+                <span>{c.title}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="m-0 text-sm text-fg-muted">{msg("riskPage.noControlsYet")}</p>
+        )}
+      </Panel>
       <HistoryPanel key={version} call={call} path={`/api/v1/risks/${risk.key}/history`} />
       {can("admin") && (
         <div>
@@ -856,6 +886,7 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
       {dialog === "edit" && <EditRiskDialog risk={risk} call={call} onClose={() => setDialog(undefined)} onSaved={saved} />}
       {dialog === "accept" && <AcceptDialog risk={risk} call={call} onClose={() => setDialog(undefined)} onSaved={saved} />}
       {dialog === "link" && <LinkDialog risk={risk} call={call} onClose={() => setDialog(undefined)} onSaved={saved} />}
+      {dialog === "controls" && <ControlsDialog risk={risk} call={call} onClose={() => setDialog(undefined)} onSaved={saved} />}
       <Dialog
         open={dialog === "delete"}
         onOpenChange={(o) => !o && setDialog(undefined)}
@@ -883,6 +914,213 @@ function RiskPage({ call, id, reload }: { call: Call; id: string; reload: () => 
       >
         <></>
       </Dialog>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- Controls
+
+/** The frameworks once per page load: they are part of the product and do not change while it runs. */
+function useFrameworks(call: Call) {
+  const [list, setList] = useState<FrameworkSummary[]>([]);
+  useEffect(
+    () =>
+      void call<{ frameworks: FrameworkSummary[] }>("/api/v1/frameworks").then(
+        (r) => setList(r.frameworks),
+        () => {},
+      ),
+    [call],
+  );
+  return list;
+}
+
+/** Chooses the controls of ISO 27001 and SOC 2 that treat a risk. */
+function ControlsDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Call; onClose: () => void; onSaved: () => void }) {
+  const t = useT();
+  const frameworks = useFrameworks(call);
+  const [fw, setFw] = useState("iso27001-2022");
+  const [data, setData] = useState<Framework>();
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState(() => new Set((risk.controls ?? []).map((c) => `${c.framework}:${c.id}`)));
+  const [error, setError] = useState<string>();
+  useEffect(() => void call<Framework>(`/api/v1/frameworks/${fw}`).then(setData, () => {}), [call, fw]);
+  const toggle = (key: string) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      const controls = [...picked].map((k) => ({ framework: k.slice(0, k.lastIndexOf(":")), id: k.slice(k.lastIndexOf(":") + 1) }));
+      await call(`/api/v1/risks/${risk.key}/controls`, { method: "PUT", body: JSON.stringify({ controls }) });
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const needle = q.trim().toLowerCase();
+  const shown = (data?.id === fw ? data.controls : []).filter((c) => !needle || `${c.id} ${c.title}`.toLowerCase().includes(needle));
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={t("controlsDialog.controlsOf", { key: risk.key })}
+      description={t("controlsDialog.theControlsThatTreatIt")}
+      onSubmit={save}
+      footer={
+        <>
+          <Button type="button" onClick={onClose}>
+            {t("controlsDialog.cancel")}
+          </Button>
+          <Button type="submit" variant="primary">
+            {t("controlsDialog.save", { count: picked.size })}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedControl
+          label={t("controlsDialog.framework")}
+          value={fw}
+          onChange={setFw}
+          options={frameworks.map((f) => ({ value: f.id, label: f.short }))}
+        />
+        <SearchInput label={t("controlsDialog.search")} className="w-48" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="flex max-h-80 flex-col gap-1.5 overflow-y-auto pr-1">
+        {shown.map((c) => (
+          <Checkbox
+            key={c.id}
+            label={
+              <>
+                <span className="font-mono text-xs">{c.id}</span> {c.title}
+              </>
+            }
+            description={c.group}
+            checked={picked.has(`${fw}:${c.id}`)}
+            onChange={() => toggle(`${fw}:${c.id}`)}
+          />
+        ))}
+      </div>
+      {error && <p className="m-0 text-xs text-danger">{error}</p>}
+    </Dialog>
+  );
+}
+
+/** Every control of a framework with the open risks it treats: what an auditor asks to see, and where nothing is. */
+function ControlsPage({ call }: { call: Call }) {
+  const t = useT();
+  const frameworks = useFrameworks(call);
+  const [fw, setFw] = useState(() => new URLSearchParams(window.location.search).get("framework") ?? "iso27001-2022");
+  const [show, setShow] = useState<"all" | "with" | "without">("all");
+  const [q, setQ] = useState("");
+  const [data, setData] = useState<Framework | null>();
+  useEffect(() => void call<Framework>(`/api/v1/frameworks/${fw}`).then(setData, () => setData(null)), [call, fw]);
+  const needle = q.trim().toLowerCase();
+  const rows = (data?.controls ?? []).filter(
+    (c) =>
+      (show === "all" || (show === "with") === c.risks.length > 0) &&
+      (!needle || `${c.id} ${c.title} ${c.group} ${c.risks.map((r) => `${r.key} ${r.title}`).join(" ")}`.toLowerCase().includes(needle)),
+  );
+  const columns: Column<Framework["controls"][number]>[] = [
+    { id: "id", header: t("controlsPage.control"), width: "90px", mono: true, sortValue: (c) => c.id, cell: (c) => c.id },
+    {
+      id: "title",
+      header: t("controlsPage.name"),
+      width: "34%",
+      cell: (c) => (
+        <span className="flex flex-col">
+          <span>{c.title}</span>
+          <span className="text-xs text-fg-muted">{c.group}</span>
+        </span>
+      ),
+    },
+    {
+      id: "risks",
+      header: t("controlsPage.risksItTreats"),
+      sortValue: (c) => c.risks.length,
+      cell: (c) =>
+        c.risks.length ? (
+          <span className="flex flex-col gap-1">
+            {c.risks.map((r) => (
+              <span key={r.id} className="flex items-center gap-1.5 text-xs">
+                <BandBadge band={r.residualBand ?? r.band} />
+                <a href={`/risks/${r.key}`}>
+                  {r.key} {r.title}
+                </a>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="text-xs text-fg-muted">{t("controlsPage.none")}</span>
+        ),
+    },
+    {
+      id: "evidence",
+      header: t("controlsPage.evidenceIn"),
+      cell: (c) => (
+        <span className="flex flex-wrap gap-1">
+          {c.products.map((p) => (
+            <Badge key={p}>{PRODUCTS[p as ProductId]?.name ?? label(p)}</Badge>
+          ))}
+        </span>
+      ),
+    },
+  ];
+  return (
+    <>
+      <PageHeader
+        title={t("controlsPage.controls")}
+        description={t("controlsPage.theControlsOfIso")}
+        actions={<SearchInput label={t("controlsPage.search")} className="w-56" value={q} onChange={(e) => setQ(e.target.value)} />}
+      />
+      {data === null ? (
+        <EmptyState title={t("controlsPage.notFound")}>{t("controlsPage.chooseAFramework")}</EmptyState>
+      ) : (
+        <>
+          <KpiGrid minWidth={150}>
+            <KpiCard label={t("controlsPage.controls")} value={data?.controls.length ?? "–"} footer={data?.name} />
+            <KpiCard label={t("controlsPage.treatARisk")} value={data?.covered ?? "–"} />
+            <KpiCard
+              label={t("controlsPage.treatNone")}
+              value={data ? data.controls.length - data.covered : "–"}
+              tone={data && data.covered < data.controls.length ? "warning" : undefined}
+            />
+          </KpiGrid>
+          <Tabs<string>
+            label={t("controlsPage.framework")}
+            value={fw}
+            onChange={(v) => (setFw(v), navigate(`/controls?framework=${v}`, { replace: true }))}
+            items={frameworks.map((f) => ({ value: f.id, label: f.short, count: f.controls }))}
+          />
+          <FilterBar onClear={show !== "all" ? () => setShow("all") : undefined}>
+            <FacetFilter
+              label={t("controlsPage.risks")}
+              selected={show === "all" ? [] : [show]}
+              onChange={(v) => setShow((v[v.length - 1] as "with" | "without" | undefined) ?? "all")}
+              options={[
+                { value: "with", label: t("controlsPage.withRisks"), count: data?.covered },
+                { value: "without", label: t("controlsPage.withoutRisks"), count: data ? data.controls.length - data.covered : undefined },
+              ]}
+            />
+          </FilterBar>
+          <Panel flush>
+            <DataTable
+              label={t("controlsPage.controls")}
+              columns={columns}
+              rows={rows}
+              loading={data === undefined}
+              getRowId={(c) => c.id}
+              minWidth={820}
+              pageSize={50}
+              empty={<EmptyState title={t("controlsPage.noneMatch")}>{t("controlsPage.linkControlsFromARisk")}</EmptyState>}
+            />
+          </Panel>
+        </>
+      )}
     </>
   );
 }
@@ -1442,6 +1680,7 @@ function Product() {
   const nav = [
     { id: "risks", label: msg("product.register"), icon: ClipboardCheck, count: summary?.risks.open },
     { id: "heatmap", label: msg("product.heatMap"), icon: Grid3x3 },
+    { id: "controls", label: msg("product.controls"), icon: ListChecks },
     { id: "vendors", label: msg("product.vendors"), icon: Building2, count: summary?.vendors.total },
   ];
   const footerNav = [
@@ -1483,6 +1722,8 @@ function Product() {
         <RiskPage key={route.id} call={call} id={route.id} reload={reload} />
       ) : route.page === "heatmap" ? (
         <HeatmapPage call={call} />
+      ) : route.page === "controls" ? (
+        <ControlsPage call={call} />
       ) : route.page === "vendors" ? (
         <VendorsPage call={call} reload={reload} />
       ) : route.page === "vendor" ? (

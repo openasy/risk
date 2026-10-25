@@ -143,7 +143,11 @@
     "delete": "{{key}} silinsin mi?",
     "itsLinksAndHistoryAre": "Bağlantıları ve geçmişi de silinir. Kaydı korumak için bunun yerine kapatın.",
     "cancel": "Vazgeç",
-    "delete2": "Sil"
+    "delete2": "Sil",
+    "controls": "Kontroller",
+    "theControlsOfIsoAnd": "Bu riski ele alan ISO 27001 ve SOC 2 kontrolleri.",
+    "chooseControls": "Kontrolleri seç",
+    "noControlsYet": "Henüz bağlı bir kontrol yok."
   },
   "heatmapPage": {
     "heatMap": "Isı haritası",
@@ -251,7 +255,8 @@
     "members": "Üyeler",
     "signIn": "Oturum açma",
     "apiTokens": "API token'ları",
-    "account": "Hesap"
+    "account": "Hesap",
+    "controls": "Kontroller"
   },
   "plurals": {
     "openRisk_one": "{{count}} açık risk",
@@ -266,5 +271,33 @@
     "vendor": "Tedarikçi",
     "riskDetail": "{{owner}} · {{status}}",
     "noOwner": "Sorumlu yok"
+  },
+  "controlsDialog": {
+    "controlsOf": "{{key}} kontrolleri",
+    "theControlsThatTreatIt": "Bu riski ele alan kontrolleri seçin. Her değişiklik geçmişinde kalır.",
+    "cancel": "Vazgeç",
+    "save": "Kaydet ({{count}})",
+    "framework": "Çerçeve",
+    "search": "Kontrollerde ara"
+  },
+  "controlsPage": {
+    "controls": "Kontroller",
+    "theControlsOfIso": "ISO 27001 Ek A ve SOC 2: her kontrolün ele aldığı açık riskler ve kanıtını tutan ürünler. Adlar kısadır; bir kontrolün ne istediği için standarda bakın.",
+    "control": "Kontrol",
+    "name": "Ad",
+    "risksItTreats": "Ele aldığı riskler",
+    "none": "Yok",
+    "evidenceIn": "Kanıt",
+    "notFound": "Çerçeve bulunamadı",
+    "chooseAFramework": "ISO 27001 ya da SOC 2 seçin.",
+    "treatARisk": "Bir riski ele alan",
+    "treatNone": "Hiçbirini ele almayan",
+    "framework": "Çerçeve",
+    "withRisks": "Riskli",
+    "withoutRisks": "Risksiz",
+    "search": "Kontrollerde ara",
+    "noneMatch": "Eşleşen kontrol yok",
+    "linkControlsFromARisk": "Kontrolleri bir riskin sayfasında, Kontroller altında bağlayın.",
+    "risks": "Riskler"
   }
 }

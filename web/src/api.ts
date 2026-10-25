@@ -52,10 +52,13 @@ export interface Risk {
   tags: string[];
   external: { source: string; reference: string } | null;
   linkCount: number;
+  controlCount: number;
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
   links?: Link[];
+  /** Only when one risk is asked for. */
+  controls?: ControlRef[];
 }
 
 export interface HistoryEntry {
@@ -115,4 +118,34 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(problem.detail ?? `${path}: ${res.status}`);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+export interface ControlRef {
+  framework: string;
+  id: string;
+  title: string | null;
+}
+
+export interface FrameworkSummary {
+  id: string;
+  name: string;
+  short: string;
+  controls: number;
+}
+
+export interface FrameworkControl {
+  id: string;
+  title: string;
+  group: string;
+  /** OpenAsy products that keep evidence for it. */
+  products: string[];
+  risks: Array<{ id: string; key: string; title: string; band: Band; residualBand: Band | null; status: string }>;
+}
+
+export interface Framework {
+  id: string;
+  name: string;
+  short: string;
+  covered: number;
+  controls: FrameworkControl[];
 }

@@ -215,6 +215,7 @@ function riskFilter(url: URL): RiskFilter {
     owner,
     overdue: bool(url, "overdue"),
     q: query(url),
+    control: url.searchParams.get("control") ?? undefined,
   };
 }
 
@@ -289,6 +290,15 @@ export function createApp({ db, risk, version, auth, adminToken, webDir, docsDir
     },
     { method: "POST", path: "/api/v1/risks/:id/review", auth: "editor", handle: ({ params, actor }) => risk.reviewRisk(params[0]!, actor()) },
     { method: "GET", path: "/api/v1/risks/:id/history", auth: "viewer", handle: ({ params }) => ({ history: risk.riskHistory(params[0]!) }) },
+    // The controls of ISO 27001 and SOC 2 that treat a risk, chosen from GET /api/v1/frameworks.
+    {
+      method: "PUT",
+      path: "/api/v1/risks/:id/controls",
+      auth: "editor",
+      handle: async ({ params, body, actor }) => ({ controls: risk.setControls(params[0]!, await body(), actor()) }),
+    },
+    { method: "GET", path: "/api/v1/frameworks", auth: "viewer", handle: () => ({ frameworks: risk.frameworks() }) },
+    { method: "GET", path: "/api/v1/frameworks/:id", auth: "viewer", handle: ({ params }) => risk.framework(params[0]!) },
     {
       method: "POST",
       path: "/api/v1/risks/:id/links",

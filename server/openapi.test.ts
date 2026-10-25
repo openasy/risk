@@ -196,6 +196,29 @@ describe("responses match openapi.json", () => {
     await call("DELETE", "/api/v1/risks/{id}/links/{linkId}", admin(), r(`/links/${linkId}`));
     await call("DELETE", "/api/v1/risks/{id}/links/{linkId}", admin(), r(`/links/${linkId}`));
     await call("DELETE", "/api/v1/risks/{id}/links/{linkId}", { method: "DELETE" }, r("/links/x"));
+
+    await call(
+      "PUT",
+      "/api/v1/risks/{id}/controls",
+      admin({
+        controls: [
+          { framework: "iso27001-2022", id: "8.24" },
+          { framework: "soc2-2017", id: "CC6.7" },
+        ],
+      }),
+      r("/controls"),
+    );
+    await call("PUT", "/api/v1/risks/{id}/controls", admin({ controls: [{ framework: "iso27001-2022", id: "A.99" }] }), r("/controls"));
+    await call("PUT", "/api/v1/risks/{id}/controls", admin("{"), r("/controls"));
+    await call("PUT", "/api/v1/risks/{id}/controls", admin({ controls: [] }), "/api/v1/risks/R-404/controls");
+    await call("PUT", "/api/v1/risks/{id}/controls", { method: "PUT" }, r("/controls"));
+    await call("GET", "/api/v1/risks/{id}", admin(), r(""));
+    await call("GET", "/api/v1/risks", admin(), "/api/v1/risks?control=iso27001-2022:8.24");
+    await call("GET", "/api/v1/risks", admin(), "/api/v1/risks?control=nope");
+    await call("GET", "/api/v1/frameworks", admin());
+    await call("GET", "/api/v1/frameworks", {});
+    await call("GET", "/api/v1/frameworks/{id}", admin(), "/api/v1/frameworks/iso27001-2022");
+    await call("GET", "/api/v1/frameworks/{id}", admin(), "/api/v1/frameworks/nist-csf");
   });
 
   it("vendors", async () => {

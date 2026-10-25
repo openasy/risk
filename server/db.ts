@@ -92,6 +92,15 @@ const MIGRATIONS = [
      WHEN (OLD.subject_kind = 'risk' AND EXISTS (SELECT 1 FROM risks WHERE id = OLD.subject_id))
        OR (OLD.subject_kind = 'vendor' AND EXISTS (SELECT 1 FROM vendors WHERE id = OLD.subject_id))
      BEGIN SELECT RAISE(ABORT, 'history cannot be deleted'); END`,
+  `-- The controls of a framework (ISO 27001, SOC 2) that treat a risk; the catalog is in server/frameworks.ts.
+   CREATE TABLE risk_controls (
+     risk_id TEXT NOT NULL REFERENCES risks (id) ON DELETE CASCADE,
+     framework TEXT NOT NULL,
+     control TEXT NOT NULL,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY (risk_id, framework, control)
+   );
+   CREATE INDEX risk_controls_control ON risk_controls (framework, control)`,
 ];
 
 /** Opens the product's single SQLite file in WAL mode (ADR 0011) and migrates it forward. */

@@ -143,7 +143,11 @@
     "delete": "Delete {{key}}?",
     "itsLinksAndHistoryAre": "Its links and history are deleted with it. To keep the record, close it instead.",
     "cancel": "Cancel",
-    "delete2": "Delete"
+    "delete2": "Delete",
+    "controls": "Controls",
+    "theControlsOfIsoAnd": "The controls of ISO 27001 and SOC 2 that treat this risk.",
+    "chooseControls": "Choose controls",
+    "noControlsYet": "No control is linked yet."
   },
   "heatmapPage": {
     "heatMap": "Heat map",
@@ -251,7 +255,8 @@
     "members": "Members",
     "signIn": "Sign-in",
     "apiTokens": "API tokens",
-    "account": "Account"
+    "account": "Account",
+    "controls": "Controls"
   },
   "plurals": {
     "openRisk_one": "{{count}} open risk",
@@ -266,5 +271,33 @@
     "vendor": "Vendor",
     "riskDetail": "{{owner}} · {{status}}",
     "noOwner": "No owner"
+  },
+  "controlsDialog": {
+    "controlsOf": "Controls of {{key}}",
+    "theControlsThatTreatIt": "Choose the controls that treat this risk. Each change is kept in its history.",
+    "cancel": "Cancel",
+    "save": "Save ({{count}})",
+    "framework": "Framework",
+    "search": "Search controls"
+  },
+  "controlsPage": {
+    "controls": "Controls",
+    "theControlsOfIso": "ISO 27001 Annex A and SOC 2, with the open risks each control treats and the products that keep its evidence. Names are short; read the standard for what a control asks.",
+    "control": "Control",
+    "name": "Name",
+    "risksItTreats": "Risks it treats",
+    "none": "None",
+    "evidenceIn": "Evidence in",
+    "notFound": "Framework not found",
+    "chooseAFramework": "Choose ISO 27001 or SOC 2.",
+    "treatARisk": "Treat a risk",
+    "treatNone": "Treat none",
+    "framework": "Framework",
+    "withRisks": "With risks",
+    "withoutRisks": "Without risks",
+    "search": "Search controls",
+    "noneMatch": "No control matches",
+    "linkControlsFromARisk": "Link controls from a risk's page, under Controls.",
+    "risks": "Risks"
   }
 }
