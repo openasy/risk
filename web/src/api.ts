@@ -149,3 +149,15 @@ export interface Framework {
   covered: number;
   controls: FrameworkControl[];
 }
+
+/** What the overview draws besides the summary (GET /api/v1/overview). Counts are of risks not closed. */
+export interface Overview {
+  byStatus: Record<"identified" | "assessing" | "treating" | "accepted" | "review-due" | "closed", number>;
+  /** By band before and after treatment; a risk not treated yet keeps its inherent score. */
+  inherent: Record<Band, number>;
+  residual: Record<Band, number>;
+  controls: { with: number; without: number };
+  /** Risks opened and closed in each of the last 12 weeks, oldest first. */
+  weeks: Array<{ week: string; opened: number; closed: number }>;
+  reviews: Array<{ id: string; number: number; title: string; owner: string | null; band: Band; nextReview: string; overdue: boolean }>;
+}

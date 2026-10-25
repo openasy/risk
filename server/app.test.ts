@@ -314,3 +314,32 @@ describe("deleting and access", () => {
     expect(metrics).toContain('openasy_risk_open_risks{band="high"}');
   });
 });
+
+describe("the overview", () => {
+  let own: Awaited<ReturnType<typeof startApp>>;
+  beforeAll(async () => {
+    own = await startApp({ version: "0.1.0" });
+  });
+  afterAll(() => own.close());
+
+  it("counts open risks by status and band, before and after treatment, and lists the next reviews", async () => {
+    const add = async (body: Record<string, unknown>) =>
+      (await (await own.send("POST", "/api/v1/risks", { title: "A risk to count", category: "security", likelihood: 4, impact: 5, ...body })).json()) as {
+        id: string;
+        key: string;
+      };
+    await add({ residualLikelihood: 2, residualImpact: 2 });
+    await add({ likelihood: 1, impact: 2 });
+    const gone = await add({ likelihood: 3, impact: 3 });
+    await own.send("PATCH", `/api/v1/risks/${gone.id}`, { status: "closed" });
+    const o = (await (await own.send("GET", "/api/v1/overview")).json()) as any;
+    expect(o.byStatus).toMatchObject({ identified: 2, closed: 0 });
+    expect(o.inherent).toEqual({ low: 1, medium: 0, high: 0, critical: 1 });
+    expect(o.residual).toEqual({ low: 2, medium: 0, high: 0, critical: 0 });
+    expect(o.controls).toEqual({ with: 0, without: 2 });
+    expect(o.weeks).toHaveLength(12);
+    expect(o.weeks.at(-1)).toMatchObject({ opened: 3, closed: 1 });
+    expect(o.reviews).toHaveLength(2);
+    expect(o.reviews[0]).toMatchObject({ number: expect.any(Number), band: expect.any(String), overdue: false });
+  });
+});

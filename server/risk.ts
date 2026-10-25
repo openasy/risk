@@ -781,6 +781,55 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
     return { risks: rs.filter(overdue).map((r) => presentRisk(r)), vendors: vs.filter(vendorOverdue).map(presentVendor) };
   }
 
+  /**
+   * What the overview draws besides the summary: open risks by status, before and after treatment by band, how many
+   * have a framework control, risks opened and closed in each of the last 12 weeks, and the next reviews.
+   */
+  function overview() {
+    const open = db.prepare("SELECT * FROM risks WHERE status <> 'closed'").all() as Array<Record<string, any>>;
+    const byStatus: Record<EffectiveStatus, number> = { identified: 0, assessing: 0, treating: 0, accepted: 0, "review-due": 0, closed: 0 };
+    const inherent: Record<Band, number> = { low: 0, medium: 0, high: 0, critical: 0 };
+    const residual: Record<Band, number> = { low: 0, medium: 0, high: 0, critical: 0 };
+    for (const r of open) {
+      byStatus[effective(r)]++;
+      inherent[bandOf(r.likelihood * r.impact)]++;
+      residual[bandOf((r.residual_likelihood ?? r.likelihood) * (r.residual_impact ?? r.impact))]++;
+    }
+    const withControls = (
+      db.prepare("SELECT COUNT(DISTINCT c.risk_id) AS n FROM risk_controls c JOIN risks r ON r.id = c.risk_id WHERE r.status <> 'closed'").get() as {
+        n: number;
+      }
+    ).n;
+    const DAY = 86_400_000;
+    const first = Math.floor(Date.parse(now()) / DAY) * DAY + DAY - 12 * 7 * DAY;
+    const weeks = Array.from({ length: 12 }, (_, i) => ({ week: new Date(first + i * 7 * DAY).toISOString().slice(0, 10), opened: 0, closed: 0 }));
+    const since = new Date(first).toISOString();
+    const put = (at: string | null, key: "opened" | "closed") => {
+      const w = at ? weeks[Math.floor((Date.parse(at) - first) / (7 * DAY))] : undefined;
+      if (w) w[key]++;
+    };
+    for (const r of db.prepare("SELECT created_at, closed_at FROM risks WHERE created_at >= ? OR closed_at >= ?").all(since, since) as Array<{
+      created_at: string;
+      closed_at: string | null;
+    }>) {
+      if (r.created_at >= since) put(r.created_at, "opened");
+      if (r.closed_at && r.closed_at >= since) put(r.closed_at, "closed");
+    }
+    const reviews = open
+      .sort((a, b) => String(a.next_review).localeCompare(String(b.next_review)))
+      .slice(0, 8)
+      .map((r) => ({
+        id: r.id as string,
+        number: r.number as number,
+        title: r.title as string,
+        owner: (r.owner as string | null) ?? null,
+        band: bandOf(r.likelihood * r.impact),
+        nextReview: r.next_review as string,
+        overdue: overdue(r),
+      }));
+    return { byStatus, inherent, residual, controls: { with: withControls, without: open.length - withControls }, weeks, reviews };
+  }
+
   function summary() {
     const rs = db.prepare("SELECT * FROM risks").all() as Array<Record<string, any>>;
     const open = rs.filter((r) => r.status !== "closed");
@@ -811,6 +860,7 @@ export function createRisk(db: DatabaseSync, { now: clock = () => new Date() }: 
 
   return {
     summary,
+    overview,
     heatmap,
     reviews,
     createRisk: createRiskRecord,

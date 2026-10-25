@@ -26,16 +26,42 @@ import {
   Tabs,
   TextField,
   usePath,
-  type Column,
-  type ProductId,
   useThemePreference,
   useAgo,
   toLocale,
   useLocalePreference,
+  BarList,
+  DonutChart,
+  Gauge,
+  OverviewGrid,
+  SEVERITY_META,
+  StackedBarChart,
+  TimeSeriesChart,
+  TONE_COLORS,
+  type Column,
+  type ProductId,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Building2, ClipboardCheck, Grid3x3, KeyRound, ListChecks, LogIn, LogOut, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  ClipboardCheck,
+  Grid3x3,
+  Handshake,
+  KeyRound,
+  LayoutDashboard,
+  ListChecks,
+  LogIn,
+  LogOut,
+  Plus,
+  ShieldAlert,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
@@ -53,22 +79,24 @@ import {
   type Summary,
   type Treatment,
   type Vendor,
+  type Overview,
 } from "./api.ts";
 import { useT } from "./i18n.ts";
 import { search } from "./search.ts";
 const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
 
 const PAGES = ["heatmap", "controls", "setup", "account", "members", "signin", "tokens", "about"] as const;
-type Route = { page: "risks" | "vendors" | (typeof PAGES)[number] } | { page: "risk" | "vendor"; id: string };
+type Route = { page: "overview" | "risks" | "vendors" | (typeof PAGES)[number] } | { page: "risk" | "vendor"; id: string };
 /** The first path segments that are pages of this UI, for followLinks. */
-export const PATHS = ["risks", "vendors", ...PAGES];
+export const PATHS = ["overview", "risks", "vendors", ...PAGES];
 function parseRoute(path: string): Route {
   const [page, id] = path.replace(/^\//, "").split("/");
   if (page === "risks" && id) return { page: "risk", id: decodeURIComponent(id) };
   if (page === "vendors" && id) return { page: "vendor", id: decodeURIComponent(id) };
   if (page === "vendors") return { page: "vendors" };
   if ((PAGES as readonly string[]).includes(page ?? "")) return { page: page as (typeof PAGES)[number] };
-  return { page: "risks" };
+  if (page === "risks") return { page: "risks" };
+  return { page: "overview" };
 }
 
 /** Data loading with the session; when it ends, the sign-in screen comes back. */
@@ -212,6 +240,163 @@ function NewRiskDialog({ open, onClose, call, onCreated }: { open: boolean; onCl
 
 type View = "active" | "review-due" | "closed" | "all";
 
+function OverviewPage({ call, summary }: { call: Call; summary?: Summary }) {
+  const t = useT();
+  const [o, setO] = useState<Overview>();
+  useEffect(() => void call<Overview>("/api/v1/overview").then(setO, () => {}), [call, summary]);
+  const s = summary;
+  const week = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  const color = (b: Band) => TONE_COLORS[SEVERITY_META[b].tone];
+  const covered = o ? o.controls.with + o.controls.without : 0;
+  const reviewColumns: Column<Overview["reviews"][number]>[] = [
+    {
+      id: "risk",
+      header: t("overviewPage.risk"),
+      cell: (r) => (
+        <a href={`/risks/R-${r.number}`} className="font-medium">
+          R-{r.number} {r.title}
+        </a>
+      ),
+    },
+    { id: "band", header: t("overviewPage.band"), width: "110px", cell: (r) => <SeverityBadge severity={r.band} /> },
+    { id: "owner", header: t("overviewPage.owner"), width: "140px", cell: (r) => <span className="text-xs">{r.owner ?? "–"}</span> },
+    { id: "due", header: t("overviewPage.nextReview"), width: "150px", cell: (r) => <Due date={r.nextReview} overdue={r.overdue} /> },
+  ];
+  return (
+    <>
+      <PageHeader
+        title={t("overviewPage.overview")}
+        description={s ? `${t("plurals.openRisk", { count: s.risks.open })} · ${t("plurals.vendor", { count: s.vendors.total })}` : undefined}
+      />
+      {s && (
+        <KpiGrid minWidth={150}>
+          <KpiCard
+            label={t("registerPage.critical")}
+            value={s.risks.byBand.critical}
+            icon={ShieldAlert}
+            tone={s.risks.byBand.critical ? "critical" : undefined}
+            href="/risks"
+          />
+          <KpiCard
+            label={t("registerPage.high")}
+            value={s.risks.byBand.high}
+            icon={TriangleAlert}
+            tone={s.risks.byBand.high ? "danger" : undefined}
+            href="/risks"
+          />
+          <KpiCard label={t("overviewPage.openRisks")} value={s.risks.open} icon={ClipboardCheck} trend={o?.weeks.map((w) => w.opened)} href="/risks" />
+          <KpiCard
+            label={t("registerPage.reviewsOverdue")}
+            value={s.risks.overdue + s.vendors.overdue}
+            icon={CalendarClock}
+            tone={s.risks.overdue + s.vendors.overdue ? "warning" : "success"}
+          />
+          <KpiCard label={t("registerPage.accepted")} value={s.risks.accepted} icon={Handshake} tone="info" />
+          <KpiCard
+            label={t("overviewPage.withoutControl")}
+            value={o?.controls.without ?? "–"}
+            icon={ListChecks}
+            tone={o?.controls.without ? "warning" : "success"}
+            href="/controls"
+          />
+        </KpiGrid>
+      )}
+      {s && o && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.openedAndClosed")} description={t("overviewPage.openedAndClosedDetail")}>
+            <TimeSeriesChart
+              label={t("overviewPage.openedAndClosed")}
+              labels={o.weeks.map((w) => week(w.week))}
+              height={190}
+              xTicks={6}
+              series={[
+                { id: "opened", name: t("overviewPage.opened"), data: o.weeks.map((w) => w.opened), color: TONE_COLORS.danger },
+                { id: "closed", name: t("overviewPage.closed"), data: o.weeks.map((w) => w.closed), color: TONE_COLORS.success },
+              ]}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.byBand")} description={t("overviewPage.byBandDetail")}>
+            <DonutChart
+              label={t("overviewPage.byBand")}
+              caption={t("overviewPage.open")}
+              slices={BANDS.map((b) => ({ id: b, name: t(`registerPage.${b}`), value: s.risks.byBand[b], color: color(b), href: "/heatmap" }))}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && (
+        <OverviewGrid layout="halves">
+          <Panel title={t("overviewPage.treatment")} description={t("overviewPage.treatmentDetail")}>
+            <StackedBarChart
+              label={t("overviewPage.treatment")}
+              categories={[t("overviewPage.before"), t("overviewPage.after")]}
+              segments={[...BANDS].reverse().map((b) => ({ id: b, name: t(`registerPage.${b}`), color: color(b) }))}
+              values={[[...BANDS].reverse().map((b) => o.inherent[b]), [...BANDS].reverse().map((b) => o.residual[b])]}
+              height={190}
+              xTicks={2}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.byStatus")} description={t("overviewPage.byStatusDetail")}>
+            <DonutChart
+              label={t("overviewPage.byStatus")}
+              caption={t("overviewPage.open")}
+              slices={[
+                { id: "identified", name: label("identified"), value: o.byStatus.identified, color: TONE_COLORS.neutral },
+                { id: "assessing", name: label("assessing"), value: o.byStatus.assessing, color: TONE_COLORS.info },
+                { id: "treating", name: label("treating"), value: o.byStatus.treating, color: TONE_COLORS.warning },
+                { id: "accepted", name: label("accepted"), value: o.byStatus.accepted, color: TONE_COLORS.success },
+                { id: "review-due", name: label("review-due"), value: o.byStatus["review-due"], color: TONE_COLORS.danger },
+              ]}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {s && o && (
+        <OverviewGrid layout="thirds">
+          <Panel title={t("overviewPage.controls")} description={t("overviewPage.controlsDetail")}>
+            {covered ? (
+              <Gauge
+                label={t("overviewPage.controls")}
+                value={o.controls.with}
+                max={covered}
+                tone={o.controls.without ? "warning" : "success"}
+                caption={t("overviewPage.withControlOf", { n: o.controls.with, total: covered })}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.noOpenRisks")} />
+            )}
+          </Panel>
+          <Panel title={t("overviewPage.byCategory")} description={t("overviewPage.byCategoryDetail")}>
+            {s.byCategory.length ? (
+              <BarList label={t("overviewPage.byCategory")} items={s.byCategory.map((c) => ({ id: c.category, label: label(c.category), value: c.count }))} />
+            ) : (
+              <EmptyState title={t("overviewPage.noOpenRisks")} />
+            )}
+          </Panel>
+          <Panel title={t("overviewPage.vendors")} description={t("overviewPage.vendorsDetail")}>
+            <DonutChart
+              label={t("overviewPage.vendors")}
+              caption={t("overviewPage.vendorsCaption")}
+              size={128}
+              slices={[
+                { id: "high", name: label("high"), value: s.vendors.byRating.high, color: TONE_COLORS.danger, href: "/vendors" },
+                { id: "medium", name: label("medium"), value: s.vendors.byRating.medium, color: TONE_COLORS.warning, href: "/vendors" },
+                { id: "low", name: label("low"), value: s.vendors.byRating.low, color: TONE_COLORS.success, href: "/vendors" },
+                { id: "unrated", name: label("unrated"), value: s.vendors.byRating.unrated, color: TONE_COLORS.neutral, href: "/vendors" },
+              ]}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && o.reviews.length > 0 && (
+        <Panel title={t("overviewPage.nextReviews")} description={t("overviewPage.nextReviewsDetail")} flush>
+          <DataTable label={t("overviewPage.nextReviews")} rows={o.reviews} columns={reviewColumns} getRowId={(r) => r.id} />
+        </Panel>
+      )}
+    </>
+  );
+}
+
 function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary; reload: () => void }) {
   const t = useT();
   const { can } = useAuth();
@@ -296,20 +481,6 @@ function RegisterPage({ call, summary, reload }: { call: Call; summary?: Summary
           </>
         }
       />
-      {s && (
-        <KpiGrid minWidth={150}>
-          <KpiCard label={t("registerPage.critical")} value={s.risks.byBand.critical} footer={<SeverityBadge severity="critical" />} />
-          <KpiCard label={t("registerPage.high")} value={s.risks.byBand.high} footer={<SeverityBadge severity="high" />} />
-          <KpiCard label={t("registerPage.medium")} value={s.risks.byBand.medium} footer={<SeverityBadge severity="medium" />} />
-          <KpiCard label={t("registerPage.low")} value={s.risks.byBand.low} footer={<SeverityBadge severity="low" />} />
-          <KpiCard
-            label={t("registerPage.reviewsOverdue")}
-            value={s.risks.overdue + s.vendors.overdue}
-            tone={s.risks.overdue + s.vendors.overdue ? "warning" : "success"}
-          />
-          <KpiCard label={t("registerPage.accepted")} value={s.risks.accepted} tone="info" />
-        </KpiGrid>
-      )}
       {due > 0 && reviews && (
         <Panel title={t("registerPage.overdue", { plural: t("plurals.review", { count: due }) })} description={t("registerPage.reviewTheRiskOrVendor")}>
           <ul className="risk-list flex flex-col gap-1 text-sm">
@@ -1678,6 +1849,7 @@ function Product() {
   }, [reload]);
 
   const nav = [
+    { id: "overview", label: msg("product.overview"), icon: LayoutDashboard },
     { id: "risks", label: msg("product.register"), icon: ClipboardCheck, count: summary?.risks.open },
     { id: "heatmap", label: msg("product.heatMap"), icon: Grid3x3 },
     { id: "controls", label: msg("product.controls"), icon: ListChecks },
@@ -1716,7 +1888,9 @@ function Product() {
       onThemeChange={setTheme}
       onLanguageChange={(code) => setLocale(toLocale(code))}
     >
-      {route.page === "risks" ? (
+      {route.page === "overview" ? (
+        <OverviewPage call={call} summary={summary} />
+      ) : route.page === "risks" ? (
         <RegisterPage call={call} summary={summary} reload={reload} />
       ) : route.page === "risk" ? (
         <RiskPage key={route.id} call={call} id={route.id} reload={reload} />
