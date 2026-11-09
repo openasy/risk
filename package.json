@@ -1,6 +1,6 @@
 {
   "name": "@openasy/risk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "OpenAsy Risk: the risk register and vendor reviews, linked to controls and findings, with a history nobody edits.",
   "license": "AGPL-3.0-only",
