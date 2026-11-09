@@ -81,9 +81,9 @@ import {
   type Vendor,
   type Overview,
 } from "./api.ts";
-import { useT } from "./i18n.ts";
+import { useT, viewerLocale, setViewerLocale } from "./i18n.ts";
 import { search } from "./search.ts";
-const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : "–");
+const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString(viewerLocale()) : "–");
 
 const PAGES = ["heatmap", "controls", "setup", "account", "members", "signin", "tokens", "about"] as const;
 type Route = { page: "overview" | "risks" | "vendors" | (typeof PAGES)[number] } | { page: "risk" | "vendor"; id: string };
@@ -245,7 +245,7 @@ function OverviewPage({ call, summary }: { call: Call; summary?: Summary }) {
   const [o, setO] = useState<Overview>();
   useEffect(() => void call<Overview>("/api/v1/overview").then(setO, () => {}), [call, summary]);
   const s = summary;
-  const week = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  const week = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(viewerLocale(), { month: "short", day: "numeric", timeZone: "UTC" });
   const color = (b: Band) => TONE_COLORS[SEVERITY_META[b].tone];
   const covered = o ? o.controls.with + o.controls.without : 0;
   const reviewColumns: Column<Overview["reviews"][number]>[] = [
@@ -839,7 +839,7 @@ function HistoryPanel({ call, path }: { call: Call; path: string }) {
       id: "at",
       header: t("historyPanel.when"),
       sortValue: (h) => h.at,
-      cell: (h) => <span className="whitespace-nowrap text-xs">{new Date(h.at).toLocaleString()}</span>,
+      cell: (h) => <span className="whitespace-nowrap text-xs">{new Date(h.at).toLocaleString(viewerLocale())}</span>,
     },
     { id: "who", header: t("historyPanel.who"), cell: (h) => <span className="text-xs">{h.who}</span> },
     { id: "field", header: t("historyPanel.what"), cell: (h) => <span className="text-xs">{label(h.field)}</span> },
@@ -1161,7 +1161,7 @@ function ControlsDialog({ risk, call, onClose, onSaved }: { risk: Risk; call: Ca
         />
         <SearchInput label={t("controlsDialog.search")} className="w-48" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      <div className="flex max-h-80 flex-col gap-1.5 overflow-y-auto pr-1">
+      <div className="flex max-h-80 flex-col gap-1.5 overflow-y-auto pe-1">
         {shown.map((c) => (
           <Checkbox
             key={c.id}
@@ -1915,6 +1915,7 @@ export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
   const [locale] = useLocalePreference();
+  setViewerLocale(locale);
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
     <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
